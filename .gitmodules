@@ -1,0 +1,9 @@
+[submodule "garrytan-gstack"]
+	path = garrytan-gstack
+	url = https://github.com/garrytan/gstack
+[submodule "garrytan-gbrain"]
+	path = garrytan-gbrain
+	url = https://github.com/garrytan/gbrain
+[submodule "himself65-finance-skills"]
+	path = himself65-finance-skills
+	url = https://github.com/himself65/finance-skills
