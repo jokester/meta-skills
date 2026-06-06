@@ -7,3 +7,6 @@
 [submodule "himself65-finance-skills"]
 	path = himself65-finance-skills
 	url = https://github.com/himself65/finance-skills
+[submodule "obra-superpowers"]
+	path = obra-superpowers
+	url = https://github.com/obra/superpowers
