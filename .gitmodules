@@ -10,3 +10,9 @@
 [submodule "obra-superpowers"]
 	path = obra-superpowers
 	url = https://github.com/obra/superpowers
+[submodule "orange2ai-renwei-writing"]
+	path = orange-renwei-writing
+	url = https://github.com/orange2ai/renwei-writing
+[submodule "orange-line-illustration"]
+	path = orange-line-illustration
+	url = https://github.com/orange2ai/orange-line-illustration
