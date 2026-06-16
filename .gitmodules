@@ -19,3 +19,9 @@
 [submodule "ponytail"]
 	path = ponytail
 	url = https://github.com/DietrichGebert/ponytail
+[submodule "ja/k16shikano-ja-tech-writing"]
+	path = ja/k16shikano-ja-tech-writing
+	url = https://gist.github.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d
+[submodule "mattp-skills"]
+	path = mattp-skills
+	url = https://github.com/mattpocock/skills
