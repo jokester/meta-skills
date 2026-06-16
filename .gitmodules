@@ -16,3 +16,6 @@
 [submodule "orange-line-illustration"]
 	path = orange-line-illustration
 	url = https://github.com/orange2ai/orange-line-illustration
+[submodule "ponytail"]
+	path = ponytail
+	url = https://github.com/DietrichGebert/ponytail
