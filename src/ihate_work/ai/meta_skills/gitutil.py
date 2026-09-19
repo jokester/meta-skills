@@ -50,20 +50,35 @@ def submodule_rev(repo_root: Path, sub_path: str) -> str | None:
     return None
 
 
-def ensure_gitignored(repo_root: Path, rel_path: str) -> bool:
-    """Make sure rel_path is ignored in repo_root; append to .gitignore if not.
+# The manager keeps its transient entries out of dest repos via a
+# .gitignore it owns INSIDE the skills dir — never by editing the dest
+# repo's own (tracked, human-owned) root .gitignore.
+_MANAGED_HEADER = "# managed by meta-skills — transient entries, do not commit"
+_BASELINE = [_MANAGED_HEADER, "/.gitignore"]
 
-    Returns True if .gitignore was modified.
+
+def skills_gitignore_add(skills_dir: Path, names: tuple[str, ...] = ()) -> None:
+    """Ensure skills_dir/.gitignore ignores the manager's transient files.
+
+    Baseline (always): the .gitignore itself and the manifest. Each name in
+    names (symlinked skill dirs) gets its own line.
     """
-    try:
-        _git(repo_root, "check-ignore", "-q", rel_path)
-        return False  # already ignored
-    except subprocess.CalledProcessError:
-        pass
-    gitignore = repo_root / ".gitignore"
-    existing = gitignore.read_text() if gitignore.is_file() else ""
-    line = f"/{rel_path}"
-    if existing and not existing.endswith("\n"):
-        existing += "\n"
-    gitignore.write_text(existing + line + "\n")
-    return True
+    from .manifest import MANIFEST_NAME  # local import to avoid a cycle
+
+    gi = skills_dir / ".gitignore"
+    lines = gi.read_text().splitlines() if gi.is_file() else []
+    if not lines:
+        lines = [*_BASELINE, f"/{MANIFEST_NAME}"]
+    for name in names:
+        if f"/{name}" not in lines:
+            lines.append(f"/{name}")
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    gi.write_text("\n".join(lines) + "\n")
+
+
+def skills_gitignore_remove(skills_dir: Path, name: str) -> None:
+    gi = skills_dir / ".gitignore"
+    if not gi.is_file():
+        return
+    lines = [ln for ln in gi.read_text().splitlines() if ln != f"/{name}"]
+    gi.write_text("\n".join(lines) + "\n")

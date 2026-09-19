@@ -141,8 +141,9 @@ def install_(
     plans = [install.plan(s, d, m) for d in dests for s in chosen]
     for p in plans:
         click.echo(f"  {p.skill.id}  --{p.method.value}-->  {p.target}")
-        for w in p.warnings:
-            click.secho(f"  ! {w}", fg="yellow")
+    # each warning once per run, not once per skill
+    for w in dict.fromkeys(w for p in plans for w in p.warnings):
+        click.secho(f"! {w}", fg="yellow")
     if not (yes or click.confirm("proceed?", default=True)):
         raise click.Abort()
 

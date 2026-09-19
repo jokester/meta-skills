@@ -88,6 +88,29 @@ def test_scripted_ambiguous_dest_fails_loudly(dest_repo: Path):
     assert not (dest_repo / ".claude").exists()  # nothing installed silently
 
 
+def test_symlink_warning_shown_once_per_run(dest_repo: Path):
+    skills = discover.all_skills()
+    if len(skills) < 2:
+        pytest.skip("needs at least two skills in this repo")
+    r = CliRunner().invoke(
+        cli,
+        [
+            "install",
+            skills[0].id,
+            skills[1].id,
+            "--dest",
+            str(dest_repo),
+            "--product",
+            "claude",
+            "--method",
+            "symlink",
+            "--yes",
+        ],
+    )
+    assert r.exit_code == 0, r.output
+    assert r.output.count("REPO & SYMLINK") == 1
+
+
 def test_wizard_refuses_without_tty():
     # CliRunner's stdin is not a TTY, so bare `install` must fail cleanly
     r = CliRunner().invoke(cli, ["install"])

@@ -4,6 +4,14 @@ This repo is my personal skill storage & manager: a monorepo that collects
 agent skills (mine and other people's) and provides tooling to install them
 into the places agents look for them.
 
+Docs split:
+
+- `docs/SPEC.md` — the product spec: model, rules, use cases. **What** the
+  manager does; change it when behavior changes.
+- `docs/skill-dirs.md` — survey of per-product skill dir conventions;
+  mirrored in code by `products.py`.
+- this file — repo layout, code map, dev workflow. **How** it's built.
+
 ## repo layout
 
 - `my/` — my own skills, authored in this repo (OWN).
@@ -16,82 +24,16 @@ into the places agents look for them.
 - `cli`, `Makefile`, `requirements.txt`, `pyproject.toml` — tooling entry
   points (see "dev workflow" below).
 
-## modelling of skills & installing
+## the model (summary — `docs/SPEC.md` is authoritative)
 
-An install = (skill source, dest, method).
-
-### the skills (source)
-
-1. OWN: `/my` my own skills
-2. EXTERNAL: external skills (git submodules, pinned to a revision)
-
-### the install dest
-
-A dest has two axes: the *root* (below) × the *product* (whose convention —
-Claude Code `.claude`, Codex `.codex`, pi `.pi`, omp `.omp`, neutral
-`.agents`). The per-product dir table lives in `products.py`; the survey
-behind it is `docs/skill-dirs.md`. Nothing may hardcode `.claude`.
-
-1. HOME: a product's global skill dir (e.g. `~/.claude/skills`,
-   `~/.codex/skills`, `~/.pi/agent/skills`, `~/.omp/agent/skills`)
-2. REPO: a git repo (identified by the `.git` entry at its root)
-3. DIR: any dir containing a product config dir (`.claude`, `.codex`, ...)
-
-Neither axis is ever decided silently: a path merely *inside* a repo, or a
-root where zero/multiple product dirs exist, prompts the user (TTY) or
-fails loudly (scripted; disambiguate with `--product` / the repo root).
-
-### the installing (method)
-
-1. COPY: the dest gets a permanent snapshot
-2. SYMLINK: the dest gets a pointer back into this repo
-3. CUSTOM: the upstream has its own install script
-    - need to be studied case by case
-    - often means the installed files are template-instantiated, so close to COPY
-    - we may also rewire upstream to get what we want. These rewiring steps
-      should be kept in our code, pinned to `(upstream_repo, upstream_rev)`
-      matching the git submodules.
-
-### special rules
-
-1. (REPO & SYMLINK): the installed skills must be .gitignored in the dest
-   repo (the manager should ensure this), and the user should be warned that
-   this combination is only suitable when evaluating skills — collaborators
-   won't have the symlink target.
-2. COPY into a dest should record where the snapshot came from (skill name +
-   upstream rev), so a later run can detect drift and offer to re-install.
-3. Never install by hand-copying; always go through the manager so the rules
-   above hold.
-
-(TODO evaluate if we need more)
-
-## install metadata (design decided, impl pending)
-
-Why metadata at all: SYMLINK installs are self-describing (readlink points
-back into this repo), but a COPY is indistinguishable from a hand-written
-skill — without metadata there is no uninstall listing, no `status`, no
-drift detection ("this copy came from obra/superpowers @ rev X, since
-bumped"). Two stores with strictly split roles, both **never committed**:
-
-1. **Per-dest manifest** — `.meta-skills.json` in the dest's skills dir
-   (exists today). The single source of truth for "what is installed here":
-   skill id, method, source rev, installed_at. It travels with the install
-   and survives this repo being re-cloned or moved.
-   - TODO: must be auto-gitignored in REPO dests (like symlinks already
-     are); currently it would get committed.
-2. **Dest index** — a local file in this clone (e.g. `var/dests.json`,
-   gitignored). Stores *only the list of dest paths ever installed to* —
-   deliberately no per-skill data, so the two stores cannot desync. Enables
-   `status --all` (iterate known dests, read their manifests), bulk
-   re-install after a submodule bump, and dangling-symlink cleanup. Stale
-   paths get pruned on read; a lost index rebuilds itself as dests are
-   touched again.
-
-Known limitation (accepted): a COPY committed into a dest repo and cloned
-on another machine has no provenance there — drift detection only works on
-the machine that installed it. If that ever matters, the opt-in exception
-is a small provenance file committed *inside* the copy (vendoring-note
-style); skipped for now.
+An install = (skill source, dest, method): source OWN (`my/`) or EXTERNAL
+(submodule, pinned rev); dest = root (HOME / REPO / DIR) × product
+(`.claude`, `.codex`, `.pi`, `.omp`, `.agents` — table in `products.py`);
+method COPY / SYMLINK / CUSTOM. Load-bearing rules to keep in mind while
+coding: never resolve an ambiguous dest silently, never hardcode a product
+convention, REPO×SYMLINK must warn + gitignore, COPY must record
+provenance, CUSTOM rewiring is pinned to `(collection, rev)` and fails
+loudly when stale. Details, metadata design, and use cases: `docs/SPEC.md`.
 
 ## coding
 
@@ -111,14 +53,16 @@ collection of skills, into a new or existing dest. Module map:
   (root: HOME > REPO > DIR), raising `AmbiguousRoot` instead of walking up
   to a repo root silently.
 - `install.py` — `plan()` validates a triple and collects the special-rule
-  warnings; `execute()` performs COPY/SYMLINK/CUSTOM, ensures gitignore for
-  REPO & SYMLINK, and records provenance.
+  warnings; `execute()` performs COPY/SYMLINK/CUSTOM, records provenance,
+  and maintains the manager-owned skills-dir `.gitignore` (symlinks +
+  manifest transient; the dest repo's root .gitignore is never touched).
 - `manifest.py` — `.meta-skills.json` next to installed skills: which skill,
   which method, which source rev — enables drift detection in `status`.
 - `rewire.py` — registry of CUSTOM upstream adaptations, keyed by
   `(collection, upstream_rev)`; a bumped submodule makes the lookup fail
   loudly so the rewiring gets revisited.
-- `gitutil.py` — thin git helpers (repo root, submodule revs, gitignore).
+- `gitutil.py` — thin git helpers (repo root, submodule revs) + the
+  skills-dir `.gitignore` maintenance.
 - `tui.py` — questionary-based interactive prompts (skill checkboxes, dest
   path, method select). TTY-only; raises cleanly without one, so scripted
   use (explicit args + `--yes`) never lands in a prompt.
@@ -149,4 +93,4 @@ globally. Never `pip install` by hand, never activate the venv manually.
 Adding a dependency = edit `requirements.txt`, then `make deps`.
 
 Adding an external skill collection = `git submodule add <url>
-<author>-<repo>`, then commit `.gitmodules` + the pinned rev.
+<gh-username>/<repo>`, then commit `.gitmodules` + the pinned rev.

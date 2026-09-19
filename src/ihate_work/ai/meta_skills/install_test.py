@@ -42,13 +42,44 @@ def test_copy_into_repo(skill: Skill, repo_dest):
     assert entry["source_rev"]  # this repo's HEAD
 
 
-def test_symlink_into_repo_warns_and_gitignores(skill: Skill, repo_dest):
+def _git_ignores(repo_root: Path, path: Path) -> bool:
+    r = subprocess.run(
+        ["git", "-C", str(repo_root), "check-ignore", "-q", str(path)], check=False
+    )
+    return r.returncode == 0
+
+
+def test_symlink_into_repo_warns_and_is_transient(skill: Skill, repo_dest):
     p = install.plan(skill, repo_dest, Method.SYMLINK)
     assert any("REPO & SYMLINK" in w for w in p.warnings)
 
     target = install.execute(p)
     assert target.is_symlink() and (target / "SKILL.md").is_file()
-    assert "/.claude/skills/foo" in (repo_dest.root / ".gitignore").read_text()
+
+    # transient via the skills dir's own .gitignore — the dest repo's root
+    # .gitignore is never touched
+    skills_dir = repo_dest.skills_dir
+    assert not (repo_dest.root / ".gitignore").exists()
+    for transient in (
+        target,
+        skills_dir / ".gitignore",
+        skills_dir / ".meta-skills.json",
+    ):
+        assert _git_ignores(repo_dest.root, transient), transient
+
+
+def test_copy_manifest_is_transient_but_copy_is_not(skill: Skill, repo_dest):
+    target = install.execute(install.plan(skill, repo_dest, Method.COPY))
+    assert _git_ignores(repo_dest.root, repo_dest.skills_dir / ".meta-skills.json")
+    assert not _git_ignores(repo_dest.root, target)  # the snapshot is committable
+
+
+def test_uninstall_removes_gitignore_line(skill: Skill, repo_dest):
+    target = install.execute(install.plan(skill, repo_dest, Method.SYMLINK))
+    install.uninstall(repo_dest, "foo")
+    gi = (repo_dest.skills_dir / ".gitignore").read_text()
+    assert "/foo" not in gi
+    assert not target.exists()
 
 
 def test_existing_target_needs_force(skill: Skill, repo_dest):

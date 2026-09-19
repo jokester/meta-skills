@@ -22,9 +22,9 @@ def plan(skill: Skill, dest: Dest, method: Method) -> InstallPlan:
     warnings: list[str] = []
     if dest.kind is DestKind.REPO and method is Method.SYMLINK:
         warnings.append(
-            "REPO & SYMLINK: only suitable while *evaluating* a skill — "
-            "collaborators won't have the symlink target. The link will be "
-            "gitignored in the dest repo."
+            "REPO & SYMLINK: only suitable while *evaluating* skills — "
+            "collaborators won't have the symlink targets. The links stay "
+            "transient (gitignored via the skills dir's own .gitignore)."
         )
     if method is Method.CUSTOM:
         rev = source_rev(skill)
@@ -49,9 +49,6 @@ def execute(p: InstallPlan, *, force: bool = False) -> Path:
         shutil.copytree(p.skill.path, target, ignore=shutil.ignore_patterns(".git"))
     elif p.method is Method.SYMLINK:
         target.symlink_to(p.skill.path)
-        if p.dest.kind is DestKind.REPO:
-            rel = target.relative_to(p.dest.root)
-            gitutil.ensure_gitignored(p.dest.root, str(rel))
     elif p.method is Method.CUSTOM:
         rewiring = rewire.get(p.skill.collection, source_rev(p.skill))
         assert rewiring is not None  # plan() guarantees this
@@ -64,12 +61,17 @@ def execute(p: InstallPlan, *, force: bool = False) -> Path:
         method=p.method.value,
         source_rev=source_rev(p.skill),
     )
+    # keep the manager's transient files (and symlinked skills) out of git
+    if p.dest.kind in (DestKind.REPO, DestKind.DIR):
+        names = (p.skill.name,) if p.method is Method.SYMLINK else ()
+        gitutil.skills_gitignore_add(p.dest.skills_dir, names)
     return target
 
 
 def uninstall(dest: Dest, skill_name: str) -> None:
     _remove(dest.skills_dir / skill_name)
     manifest.forget(dest.skills_dir, skill_name)
+    gitutil.skills_gitignore_remove(dest.skills_dir, skill_name)
 
 
 def _remove(target: Path) -> None:
