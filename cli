@@ -4,4 +4,4 @@
 set -eu
 here="$(cd "$(dirname "$0")" && pwd)"
 make -C "$here" -s deps >/dev/null
-exec "$here/venv/bin/python" -m ihate_work.meta_skills "$@"
+exec "$here/venv/bin/python" -m ihate_work.ai.meta_skills "$@"

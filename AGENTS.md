@@ -7,14 +7,12 @@ into the places agents look for them.
 ## repo layout
 
 - `my/` — my own skills, authored in this repo (OWN).
-- `<author>-<repo>/` — external skill collections, vendored as git submodules
-  (EXTERNAL). Naming convention: prefix with the upstream author, e.g.
-  `obra-superpowers`, `mattp-skills`.
-- `ja/` — language-specific group; same submodule rules, one level deeper
-  (e.g. `ja/k16shikano-ja-tech-writing`).
-- `src/ihate_work/meta_skills/` — the manager code (see "coding" below).
-  `ihate_work` is a namespace package (no `__init__.py`), shared with my other
-  repos.
+- `<gh-username>/<repo>/` — external skill collections, vendored as git
+  submodules (EXTERNAL), laid out by upstream GitHub username, e.g.
+  `garrytan/gstack`, `obra/superpowers`, `mattpocock/skills`.
+- `src/ihate_work/ai/meta_skills/` — the manager code (see "coding" below).
+  `ihate_work` and `ihate_work.ai` are namespace packages (no `__init__.py`),
+  shared with my other repos.
 - `cli`, `Makefile`, `requirements.txt`, `pyproject.toml` — tooling entry
   points (see "dev workflow" below).
 
@@ -59,24 +57,37 @@ An install = (skill source, dest, method).
 
 ## coding
 
-### `ihate_work.meta_skills`
+### `ihate_work.ai.meta_skills`
 
-The real manager: an interactive python script (click-based) that installs a
-skill, or a collection of skills, into a new or existing dest.
+The real manager: an interactive click-based CLI that installs a skill, or a
+collection of skills, into a new or existing dest. Module map:
 
-Responsibilities:
-- detect the dest kind (HOME / REPO / DIR) from the target path
-- apply the special rules above (gitignore handling, warnings)
-- for CUSTOM upstreams, hold the per-`(upstream_repo, upstream_rev)` rewiring
-  steps
+- `model.py` — the vocabulary: `SourceKind` (OWN/EXTERNAL), `DestKind`
+  (HOME/REPO/DIR), `Method` (COPY/SYMLINK/CUSTOM), and the `Skill`, `Dest`,
+  `InstallPlan` dataclasses.
+- `discover.py` — find skills (dirs containing `SKILL.md`) in `my/` and in
+  each submodule; uninitialized submodules still show up as collections.
+- `dest.py` — classify a target path into a `Dest` (HOME > REPO > DIR) and
+  resolve the actual skills dir to install into.
+- `install.py` — `plan()` validates a triple and collects the special-rule
+  warnings; `execute()` performs COPY/SYMLINK/CUSTOM, ensures gitignore for
+  REPO & SYMLINK, and records provenance.
+- `manifest.py` — `.meta-skills.json` next to installed skills: which skill,
+  which method, which source rev — enables drift detection in `status`.
+- `rewire.py` — registry of CUSTOM upstream adaptations, keyed by
+  `(collection, upstream_rev)`; a bumped submodule makes the lookup fail
+  loudly so the rewiring gets revisited.
+- `gitutil.py` — thin git helpers (repo root, submodule revs, gitignore).
+- `cli.py` — click commands: `list`, `install`, `status`, `uninstall`.
 
-Entry point is `__main__.py`; run it via `./cli`, not by importing directly.
+Tests are colocated as `*_test.py` (vibra convention). Entry point is
+`__main__.py`; run it via `./cli`, not by importing directly.
 
 ### `./cli`
 
 The wrapper: ensures the venv exists (`make -s deps`), then execs
-`venv/bin/python -m ihate_work.meta_skills`. It preserves the caller's cwd,
-so the manager can treat cwd as the default install dest.
+`venv/bin/python -m ihate_work.ai.meta_skills`. It preserves the caller's
+cwd, so the manager can treat cwd as the default install dest.
 
 ## dev workflow
 
