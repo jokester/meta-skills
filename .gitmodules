@@ -1,27 +1,27 @@
-[submodule "garrytan-gstack"]
-	path = garrytan-gstack
+[submodule "garrytan/gstack"]
+	path = garrytan/gstack
 	url = https://github.com/garrytan/gstack
-[submodule "garrytan-gbrain"]
-	path = garrytan-gbrain
+[submodule "garrytan/gbrain"]
+	path = garrytan/gbrain
 	url = https://github.com/garrytan/gbrain
-[submodule "himself65-finance-skills"]
-	path = himself65-finance-skills
+[submodule "himself65/finance-skills"]
+	path = himself65/finance-skills
 	url = https://github.com/himself65/finance-skills
-[submodule "obra-superpowers"]
-	path = obra-superpowers
+[submodule "obra/superpowers"]
+	path = obra/superpowers
 	url = https://github.com/obra/superpowers
-[submodule "orange2ai-renwei-writing"]
-	path = orange-renwei-writing
+[submodule "orange2ai/renwei-writing"]
+	path = orange2ai/renwei-writing
 	url = https://github.com/orange2ai/renwei-writing
-[submodule "orange-line-illustration"]
-	path = orange-line-illustration
+[submodule "orange2ai/orange-line-illustration"]
+	path = orange2ai/orange-line-illustration
 	url = https://github.com/orange2ai/orange-line-illustration
-[submodule "ponytail"]
-	path = ponytail
+[submodule "DietrichGebert/ponytail"]
+	path = DietrichGebert/ponytail
 	url = https://github.com/DietrichGebert/ponytail
-[submodule "ja/k16shikano-ja-tech-writing"]
-	path = ja/k16shikano-ja-tech-writing
+[submodule "k16shikano/ja-tech-writing"]
+	path = k16shikano/ja-tech-writing
 	url = https://gist.github.com/k16shikano/fd287c3133457c4fd8f5601d34aa817d
-[submodule "mattp-skills"]
-	path = mattp-skills
+[submodule "mattpocock/skills"]
+	path = mattpocock/skills
 	url = https://github.com/mattpocock/skills
