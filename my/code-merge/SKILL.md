@@ -23,9 +23,9 @@ skill decides _whether_ they run.
 ### 2. Review with fresh eyes
 
 - Diff: `git -C CURRENT diff CURRENT-BRANCH...TEMP-SUFFIX`.
-- Apply the Code Review Checklist in `docs/rules-dev.md` (correctness, readability, tests,
-  security — the same one code-review uses), plus the topic rules docs relevant to
-  the diff (see the index in `docs/rules-dev.md`).
+- Apply the review checklist from the repo's rulebook (via CLAUDE.md's pointer —
+  the same one code-review uses), plus the topic rules docs relevant to the diff.
+  If the repo has no rulebook, stop and ask which bar to review against.
 - If the work came from a plan task, check the diff against that task's
   **acceptance criteria** in `docs/plan-*.md`, and verify the checkbox flip is
   included and touches only that task.
@@ -42,7 +42,9 @@ skill decides _whether_ they run.
 
 Ask the human before merging — unless they pre-authorized merges for this run (e.g.
 via code-manager's up-front gating question). Never treat a passed review as
-implicit merge approval.
+implicit merge approval. Pushing the branch or opening a PR is a separate action
+that always needs its own explicit in-session approval — local merge authorization
+never implies it.
 
 ### 5. Merge and clean up
 

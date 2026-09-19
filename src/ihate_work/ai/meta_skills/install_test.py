@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from ihate_work.ai.meta_skills import dest, install, manifest
-from ihate_work.ai.meta_skills.model import Method, Skill, SourceKind
+from ihate_work.ai.meta_skills import install, manifest
+from ihate_work.ai.meta_skills.model import Dest, DestKind, Method, Skill, SourceKind
 
 
 @pytest.fixture
@@ -16,11 +16,16 @@ def skill(tmp_path: Path) -> Skill:
 
 
 @pytest.fixture
-def repo_dest(tmp_path: Path) -> dest.Dest:
-    root = tmp_path / "dest-repo"
+def repo_dest(tmp_path: Path) -> Dest:
+    root = (tmp_path / "dest-repo").resolve()
     root.mkdir()
     subprocess.run(["git", "init", "-q", str(root)], check=True)
-    return dest.resolve(root)
+    return Dest(
+        kind=DestKind.REPO,
+        root=root,
+        skills_dir=root / ".claude" / "skills",
+        product="claude",
+    )
 
 
 def test_copy_into_repo(skill: Skill, repo_dest):

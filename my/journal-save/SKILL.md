@@ -4,21 +4,23 @@ description: "Use at the end of a work session (or when the user asks to journal
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash]
 ---
 
-# journal-update — Document This Session's Work
+# journal-save — Document This Session's Work
 
 Create or update a journal entry capturing what happened in this conversation — the intent, investigations, discoveries, quirks, experiments, and actual changes made.
 
 ## Steps
 
-### 0. Always write to the CURRENT (main) worktree
+### 0. Placement — the journal must survive the worktree
 
-If this session is operating inside a temporary/spawned git worktree (e.g. one created by
-`/spawn-worktree`), the journal must still be written to the **CURRENT (main) worktree's**
-`journals/` directory — never the temporary one. The temp worktree gets deleted after its
-branch merges back, which would take the journal with it. Resolve the main worktree's root
-with `git worktree list` (the non-temporary checkout) and write `journals/...` there.
-
-When not in a worktree, the plain `journals/` path in the working directory is correct.
+- **In a temporary/spawned git worktree** (e.g. one created by `/spawn-worktree`):
+  write the journal to the worktree's own `journals/` and **commit it on the temp
+  branch** — it rides the branch back on merge, and the main checkout stays clean
+  for the ff-only merge. If the branch is later abandoned, the journal must be
+  copied back to the main worktree before deletion (spawn-worktree's cleanup rules
+  cover this).
+- **In a normal checkout**: the plain `journals/` path at the repo root.
+- CLAUDE.md may carve out per-subproject journal locations with their own indexes —
+  honor them.
 
 ### 1. Determine the journal filename
 
@@ -101,22 +103,24 @@ tldr: { One-sentence summary of the session's outcome }
 
 ### 5. Update the index
 
-`journals/index.md` is the catalog — one line per journal, grouped by theme. After
-writing the journal, add a line for it under the best-fitting group (create a new
-group heading if none fits):
+`journals/index.md` is the catalog — one line per journal, grouped by theme. If
+the repo keeps one, add a line under the best-fitting group (create a new group
+heading if none fits):
 
 ```markdown
 - [FILENAME.md](FILENAME.md) — {short hook, ~10 words: the searchable essence}
 ```
 
-When updating an existing journal whose scope grew, refresh its index line too.
-(Superset/AI-BI journals are indexed in `deps/superset/doc/index-superset.md`
-instead — see step 0's worktree note and CLAUDE.md.)
+When updating an existing journal whose scope grew, refresh its index line too. If
+the repo has accumulated many journals but no index yet, suggest creating one.
+(If CLAUDE.md routes this journal to a per-subproject location, update that
+location's index instead.)
 
 **Promote durable discoveries.** If a Discovery/Quirk is a lasting fact about a
-tool or convention (not just this session's circumstance), it belongs in a
-`docs/kb-*.md` — add it there now, or record the promotion as an Open thread.
-Journals are the log; kb docs are where future sessions actually look.
+tool or convention (not just this session's circumstance), it belongs in the
+repo's knowledge docs (per its doc taxonomy — e.g. a `kb-*.md` or study doc) — add
+it there now, or record the promotion as an Open thread. Journals are the log;
+knowledge docs are where future sessions actually look.
 
 ### 6. Guidelines
 

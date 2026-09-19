@@ -61,7 +61,7 @@ Kinds: **new reusable task** (skill, script, checklist, template), **rule promot
 Implement approved proposals. A reusable task takes whatever form fits the trigger and the user's tools: a Claude skill, a shell script, a checklist in a doc, a template file, a scheduled job. For Claude skills, read `authoring.md` in this skill dir for conventions (progressive disclosure, guess-first defaults, evidence-cited rules, after-write hygiene); for other artifacts, place them next to what they organize and reference them from there.
 
 - Project-specific → that project's repo (`.claude/skills/`, docs, or scripts dir); update its CLAUDE.md or index; grep for names made stale.
-- Cross-project → this collection (`meta-skills/my/`); skills get symlinked into `~/.claude/skills/`.
+- Cross-project → this collection (`meta-skills/my/`); install into agents' skill dirs via the collection's manager (`./cli`), never by hand-copying or ad-hoc symlinks (see this repo's AGENTS.md).
 - Commit in every repo that changed, message style matching its history.
 
 ## Step 5. Close the run

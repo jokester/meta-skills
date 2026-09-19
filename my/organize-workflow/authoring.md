@@ -16,7 +16,7 @@ Conventions for the reusable tasks this routine produces. Derived from practice;
 - **Every rule cites evidence.** Point at a real artifact in its repo or quote the user's stated reason. Rules without a visible why rot and get argued with.
 - **Encode the why for anti-pattern rules.** "Never do X" is stronger with "because Y" attached.
 - **No confirmation round-trips** for inferences the skill's own tables already determine. Write, then report what was inferred; the user corrects after the fact if needed.
-- **Placement: smallest scope that covers all occurrences.** One project → that repo's CLAUDE.md or `.claude/skills/`. Multiple projects → this collection (`meta-skills/my/`) plus a symlink: `ln -s /home/mono/Projects/meta-skills/my/<name> ~/.claude/skills/<name>`.
+- **Placement: smallest scope that covers all occurrences.** One project → that repo's CLAUDE.md or `.claude/skills/`. Multiple projects → this collection (`meta-skills/my/`), installed into agents' skill dirs via the collection's manager (`./cli install`) — never a hand-made symlink or copy (see this repo's AGENTS.md special rules).
 
 ### Hygiene
 

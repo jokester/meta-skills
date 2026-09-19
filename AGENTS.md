@@ -27,9 +27,19 @@ An install = (skill source, dest, method).
 
 ### the install dest
 
-1. HOME: the global skill dirs for agents (e.g. `~/.claude/skills`)
+A dest has two axes: the *root* (below) × the *product* (whose convention —
+Claude Code `.claude`, Codex `.codex`, pi `.pi`, omp `.omp`, neutral
+`.agents`). The per-product dir table lives in `products.py`; the survey
+behind it is `docs/skill-dirs.md`. Nothing may hardcode `.claude`.
+
+1. HOME: a product's global skill dir (e.g. `~/.claude/skills`,
+   `~/.codex/skills`, `~/.pi/agent/skills`, `~/.omp/agent/skills`)
 2. REPO: a git repo (identified by the `.git` entry at its root)
-3. DIR: any dir containing special directories like `.claude` `.omp`
+3. DIR: any dir containing a product config dir (`.claude`, `.codex`, ...)
+
+Neither axis is ever decided silently: a path merely *inside* a repo, or a
+root where zero/multiple product dirs exist, prompts the user (TTY) or
+fails loudly (scripted; disambiguate with `--product` / the repo root).
 
 ### the installing (method)
 
@@ -55,6 +65,34 @@ An install = (skill source, dest, method).
 
 (TODO evaluate if we need more)
 
+## install metadata (design decided, impl pending)
+
+Why metadata at all: SYMLINK installs are self-describing (readlink points
+back into this repo), but a COPY is indistinguishable from a hand-written
+skill — without metadata there is no uninstall listing, no `status`, no
+drift detection ("this copy came from obra/superpowers @ rev X, since
+bumped"). Two stores with strictly split roles, both **never committed**:
+
+1. **Per-dest manifest** — `.meta-skills.json` in the dest's skills dir
+   (exists today). The single source of truth for "what is installed here":
+   skill id, method, source rev, installed_at. It travels with the install
+   and survives this repo being re-cloned or moved.
+   - TODO: must be auto-gitignored in REPO dests (like symlinks already
+     are); currently it would get committed.
+2. **Dest index** — a local file in this clone (e.g. `var/dests.json`,
+   gitignored). Stores *only the list of dest paths ever installed to* —
+   deliberately no per-skill data, so the two stores cannot desync. Enables
+   `status --all` (iterate known dests, read their manifests), bulk
+   re-install after a submodule bump, and dangling-symlink cleanup. Stale
+   paths get pruned on read; a lost index rebuilds itself as dests are
+   touched again.
+
+Known limitation (accepted): a COPY committed into a dest repo and cloned
+on another machine has no provenance there — drift detection only works on
+the machine that installed it. If that ever matters, the opt-in exception
+is a small provenance file committed *inside* the copy (vendoring-note
+style); skipped for now.
+
 ## coding
 
 ### `ihate_work.ai.meta_skills`
@@ -67,8 +105,11 @@ collection of skills, into a new or existing dest. Module map:
   `InstallPlan` dataclasses.
 - `discover.py` — find skills (dirs containing `SKILL.md`) in `my/` and in
   each submodule; uninitialized submodules still show up as collections.
-- `dest.py` — classify a target path into a `Dest` (HOME > REPO > DIR) and
-  resolve the actual skills dir to install into.
+- `products.py` — the per-product skill dir table (marker, project skills
+  dir, global skills dir); kept in sync with `docs/skill-dirs.md`.
+- `dest.py` — classify a target path into per-product `Dest` candidates
+  (root: HOME > REPO > DIR), raising `AmbiguousRoot` instead of walking up
+  to a repo root silently.
 - `install.py` — `plan()` validates a triple and collects the special-rule
   warnings; `execute()` performs COPY/SYMLINK/CUSTOM, ensures gitignore for
   REPO & SYMLINK, and records provenance.
@@ -78,7 +119,12 @@ collection of skills, into a new or existing dest. Module map:
   `(collection, upstream_rev)`; a bumped submodule makes the lookup fail
   loudly so the rewiring gets revisited.
 - `gitutil.py` — thin git helpers (repo root, submodule revs, gitignore).
+- `tui.py` — questionary-based interactive prompts (skill checkboxes, dest
+  path, method select). TTY-only; raises cleanly without one, so scripted
+  use (explicit args + `--yes`) never lands in a prompt.
 - `cli.py` — click commands: `list`, `install`, `status`, `uninstall`.
+  `install`/`uninstall` with no positional args run the interactive wizard;
+  with args they are fully scriptable.
 
 Tests are colocated as `*_test.py` (vibra convention). Entry point is
 `__main__.py`; run it via `./cli`, not by importing directly.

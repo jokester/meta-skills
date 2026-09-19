@@ -15,10 +15,12 @@ be in the plan doc or reachable from its References section.
 
 ### 1. Survey before planning
 
-Don't guess, read or ask. Read, in order: the idea doc if one exists
-(`docs/idea-{topic}.md`), the code the work will touch, `docs/rules-dev.md` (and
-from its index the topic rules the work touches), the target subproject's
-`Makefile` (how tests run). Note what exists vs what the user assumes exists.
+Don't guess, read or ask. Read, in order: any prior idea/design doc for this
+topic (per the repo's doc taxonomy), the code the work will touch, the repo's
+rulebook (via CLAUDE.md's pointer — and from its index the topic rules the work
+touches), the target subproject's `Makefile` (how tests run). If the repo has no
+rulebook, ask the user for the conventions to record in the plan's Conventions &
+constraints section. Note what exists vs what the user assumes exists.
 
 ### 2. Grill until concrete
 
@@ -41,13 +43,13 @@ Don't bake guesses into tasks — park them under Open questions instead.
 
 ## References
 
-- docs/idea-{topic}.md — {why relevant}
+- {idea/design doc — why relevant}
 - {entry-point files, kb docs, external links}
 
 ## Conventions & constraints
 
 {Plan-level notes code-impl must follow: target subproject, naming, perf/compat
-constraints. Omit anything the rules-*.md docs already say.}
+constraints. Omit anything the repo's rules docs already say.}
 
 ## Milestone 1 — {name}
 

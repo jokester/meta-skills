@@ -1,43 +1,23 @@
 ---
 name: code-deps
-description: "Manage Python/TypeScript dependencies in this monorepo. Use this to install/update deps in the smooth way."
+description: "Add, remove, or upgrade dependencies the repo's sanctioned way — via its manifests and Makefile targets, never raw package-manager installs. Use whenever dependencies change."
 allowed-tools: [Read, Edit, Bash, Glob, Grep]
 ---
 
-# code-deps — Dependency Management
+# code-deps — Dependency changes, the repo's way
 
-Add, remove, upgrade, and troubleshoot packages across the vibra monorepo. The
-authoritative reference (layouts, cooldown policy, catalogs, frozen packages,
-troubleshooting) is `docs/rules-deps.md` — read it first. All commands run from the
-repo root of whichever worktree you're in; never hardcode an absolute checkout path.
+Every repo routes dependency changes through its own machinery (manifests, lockfiles, Makefile targets, supply-chain policy). This skill's job is to find and follow that machinery — never to improvise with raw installer commands.
 
-## Critical Rules
+## Steps
 
-- **NEVER run `pip install` or `uv pip install` directly.** Edit the requirements
-  file, then `make -C py deps` (or `make -C py deps-{domain}` for per-domain deps).
-- **NEVER run `npm install`.** This repo uses pnpm exclusively.
-- **NEVER edit `venv/` contents manually.** The venv is managed by uv via the Makefile.
-- The supply-chain cooldown (uv `exclude-newer`, pnpm `minimumReleaseAge`) is
-  policy — do not bypass it to get a fresher version.
+1. **Find the repo's dep workflow.** Read CLAUDE.md and follow its pointer to the dependency rules doc (the name varies per repo). Also read the target subproject's `Makefile` for `deps`/`upgrade` targets. If neither documents a workflow, stop and ask the user rather than improvising.
+2. **Edit the manifest, run the target.** Change the declared requirement (requirements file, `package.json`, workspace catalog, …), then run the repo's install target (`make -C <dir> deps` or equivalent). Lockfiles and venvs are outputs, never the thing you edit.
+3. **Verify.** Run the repo's test/lint targets on whatever the change touches.
 
-## Python
+## Rules
 
-1. **Add**: edit `py/requirements.txt` (grouped under a comment header, no version
-   pin) — or `py/requirements-{domain}.txt` for heavy/domain-specific packages —
-   then `make -C py deps` / `make -C py deps-{domain}`.
-2. **Remove**: delete the line, `make -C py deps`. Clean state needs a venv
-   recreate (see rules-deps.md).
-3. **Upgrade**: `make -C py upgrade-deps` (pur, respects cooldown + `FREEZE_PY_REQ`),
-   then `make -C py deps`.
-
-## JS/TS
-
-1. **Add**: `cd <package> && pnpm add [-D] <name>`. If the dep is (or should be)
-   shared across packages, use the catalogs in `pnpm-workspace.yaml` and reference
-   it as `catalog:...` — see rules-deps.md.
-2. **Upgrade**: `taze` for interactive checks, `pnpm update <name>` for one package.
-
-## Troubleshooting
-
-Work through the Troubleshooting section of `docs/rules-deps.md` (sentinel files,
-pipdeptree, workspace-root `pnpm install`) before improvising.
+- **Never run raw installer commands** (`pip install`, `uv pip install`, `npm install`, …) — they bypass the manifest and produce state the next `deps` run silently reverts. Which package managers are sanctioned at all is the repo's call; the rules doc says.
+- **Never hand-edit managed dirs** (`venv/`, `node_modules/`) or lockfiles.
+- **Respect supply-chain policy.** If the repo pins a release cooldown (e.g. uv `exclude-newer`, pnpm `minimumReleaseAge`), that is policy — do not bypass it to get a fresher version.
+- **Shared deps go in the shared place.** If the repo has workspace catalogs or shared requirement groups, check the rules doc before adding a per-package copy.
+- Troubleshoot via the repo's dep rules doc before improvising fixes.

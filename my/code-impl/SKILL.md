@@ -1,6 +1,6 @@
 ---
 name: code-impl
-description: "Use when implementing a task from a plan doc (docs/plan-*.md) — validates the plan against current code with fresh eyes, implements one task with tests in an isolated worktree, commits, and hands off to code-merge. Successor of code-work."
+description: "Use when implementing a task from a plan doc (docs/plan-*.md) — validates the plan against current code with fresh eyes, implements one task with tests in an isolated worktree, commits, and hands off to code-merge."
 allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, Agent, Skill]
 ---
 
@@ -17,10 +17,11 @@ and merges. It is designed to run in a fresh context (e.g. a subagent spawned by
 
 - Read the plan doc (user- or manager-specified; otherwise the most recently
   modified `docs/plan-*.md`).
-- Read `docs/rules-dev.md` (principles + index of topic rules) and, from its index,
-  the topic docs the task touches (typically `rules-python.md` or
-  `rules-typescript.md`, which include the testing rules). Then the plan's "Conventions &
-  constraints" section.
+- Read the repo's rulebook (via CLAUDE.md's pointer — the name varies per repo)
+  and, from its index, the topic docs the task touches (typically the language
+  rules, which include the testing rules). If the repo has no rulebook, stop and
+  ask rather than implementing against guessed conventions. Then the plan's
+  "Conventions & constraints" section.
 - Read the target subproject's `Makefile` (tests, deps, format targets).
 
 ### 2. Validate the plan with fresh eyes
@@ -55,9 +56,9 @@ dedicated worktree (e.g. by code-manager); then just verify with
 
 ### 6. Write tests
 
-Every behavior change ships with tests, per the language rules doc (`TESTEE_test.py`
-naming beside the testee for Python; behavior-not-implementation). The task's **acceptance check** from the
-plan must be among them.
+Every behavior change ships with tests, following the repo's language rules for
+test naming and placement; test behavior, not implementation. The task's
+**acceptance check** from the plan must be among them.
 
 ### 7. Verify in the worktree
 

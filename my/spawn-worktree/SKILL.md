@@ -76,7 +76,19 @@ All work happens against `LOCATION-SUFFIX`.
 - Land the planned changes (use Edit/Write on files under `LOCATION-SUFFIX`).
 - Self-review and test. Run the project checks against the worktree:
   `make -C LOCATION-SUFFIX lint`, `… test`, `… typecheck`.
-- Commit on `TEMP-SUFFIX`: `git -C LOCATION-SUFFIX commit …`.
+- Commit on `TEMP-SUFFIX`: `git -C LOCATION-SUFFIX commit …`. Stage by explicit
+  path — never `git add -A` or `git add .` (they sweep in untracked build output).
+- If the session keeps a journal, write it inside `LOCATION-SUFFIX` and commit it
+  on `TEMP-SUFFIX` with the code — it rides the branch back on merge, and `CURRENT`
+  stays clean for the ff-only merge in step 3.
+
+Safety — other worktrees and sessions may be live concurrently:
+
+- Never `git stash`, `git reset`, or `git restore` in `CURRENT` or the worktree to
+  "verify" something — investigate with `git show`/`git diff` instead.
+- If you see changes in `CURRENT` you didn't make, warn the human; don't touch them.
+- Pushing the branch or opening a PR requires explicit in-session approval from the
+  human — never implied by anything else they approved.
 
 ## 3. Merge back
 
@@ -154,8 +166,10 @@ Do NOT silently abandon the worktree. Ask the human for the reason, then try aga
 accomplish the change (fix the code, re-test, re-request the merge). Only give up when
 the human EXPLICITLY says to stop.
 
-When they do say to stop, clean up the unmerged work — confirm the branch name with them
-first, since `-D` force-deletes commits that were never merged:
+When they do say to stop, clean up the unmerged work. First copy any journal
+file(s) from the worktree back into `CURRENT`'s `journals/` — the journal must
+survive the branch. Then confirm the branch name with the human, since `-D`
+force-deletes commits that were never merged:
 
 ```sh
 git -C CURRENT worktree remove --force LOCATION-SUFFIX   # discards uncommitted work in the worktree

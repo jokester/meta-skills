@@ -43,11 +43,12 @@ class Skill:
 
 @dataclass(frozen=True)
 class Dest:
-    """A resolved install destination."""
+    """A resolved install destination: a root × a product convention."""
 
     kind: DestKind
-    root: Path  # what the user pointed at (repo root for REPO)
+    root: Path  # what the user pointed at (repo root for REPO, home for HOME)
     skills_dir: Path  # the dir skills actually get installed into
+    product: str  # products.py key, e.g. "claude", "codex", "pi", "omp"
 
 
 @dataclass(frozen=True)

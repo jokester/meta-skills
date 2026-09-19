@@ -26,11 +26,11 @@ Journals live in `journals/*.md` and have YAML frontmatter with `date`, `branch`
 
 #### Strategy
 
-0. **Start with the index** — `journals/index.md` catalogs every journal, one line
-   each, grouped by theme. Skim the relevant group(s) first; it's often enough to
-   identify the right files without grepping. (Superset/AI-BI journals are separate:
-   `deps/superset/journals/` + index `deps/superset/doc/index-superset.md`.)
-   Prefer `git grep` over plain grep when possible.
+0. **Start with the index** — if the repo keeps `journals/index.md` (one line per
+   journal, grouped by theme), skim the relevant group(s) first; it's often enough
+   to identify the right files without grepping. Check CLAUDE.md for per-subproject
+   journal carve-outs with their own locations and indexes — include them in the
+   search. Prefer `git grep` over plain grep when possible.
 
 1. **Then grep** — search for keywords from the user's question across all journals:
    ```
