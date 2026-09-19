@@ -1,0 +1,7 @@
+#!/bin/sh
+# Wrapper for the skill manager. Keeps the caller's cwd (the manager may
+# treat cwd as the install dest), but always runs make/python from the repo.
+set -eu
+here="$(cd "$(dirname "$0")" && pwd)"
+make -C "$here" -s deps >/dev/null
+exec "$here/venv/bin/python" -m ihate_work.meta_skills "$@"
