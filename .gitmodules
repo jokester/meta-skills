@@ -25,3 +25,6 @@
 [submodule "mattpocock/skills"]
 	path = mattpocock/skills
 	url = https://github.com/mattpocock/skills
+[submodule "ayghri/i-have-adhd"]
+	path = ayghri/i-have-adhd
+	url = https://github.com/ayghri/i-have-adhd
