@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import sys
 from pathlib import Path
 
 MANIFEST_NAME = ".meta-skills.json"
@@ -20,7 +21,20 @@ def _manifest_path(skills_dir: Path) -> Path:
 
 def load(skills_dir: Path) -> dict[str, dict]:
     p = _manifest_path(skills_dir)
-    return json.loads(p.read_text()) if p.is_file() else {}
+    if not p.is_file():
+        return {}
+    try:
+        return json.loads(p.read_text())
+    except json.JSONDecodeError:
+        # transient, rebuildable metadata must never block anything:
+        # quarantine and continue empty
+        bad = p.with_name(p.name + ".bad")
+        p.rename(bad)
+        print(
+            f"warning: corrupt manifest quarantined as {bad}; treating as empty",
+            file=sys.stderr,
+        )
+        return {}
 
 
 def record(

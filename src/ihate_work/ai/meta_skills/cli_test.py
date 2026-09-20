@@ -111,6 +111,58 @@ def test_symlink_warning_shown_once_per_run(dest_repo: Path):
     assert r.output.count("REPO & SYMLINK") == 1
 
 
+def test_batch_skips_existing_and_continues(dest_repo: Path):
+    skills = discover.all_skills()
+    if len(skills) < 2:
+        pytest.skip("needs at least two skills in this repo")
+    a, b = skills[0], skills[1]
+    # pre-occupy a's target
+    taken = dest_repo / ".claude" / "skills" / a.name
+    taken.mkdir(parents=True)
+    (taken / "SKILL.md").write_text("# hand-made\n")
+
+    r = CliRunner().invoke(
+        cli,
+        [
+            "install",
+            a.id,
+            b.id,
+            "--dest",
+            str(dest_repo),
+            "--product",
+            "claude",
+            "--method",
+            "copy",
+            "--yes",
+        ],
+    )
+    assert r.exit_code == 0, r.output  # a skip is not a failure
+    assert "1 installed, 1 skipped" in r.output
+    assert (dest_repo / ".claude" / "skills" / b.name / "SKILL.md").is_file()
+    assert (taken / "SKILL.md").read_text() == "# hand-made\n"  # untouched
+
+
+def test_exists_without_force_is_clean_not_a_traceback(dest_repo: Path):
+    skill = discover.all_skills()[0]
+    args = [
+        "install",
+        skill.id,
+        "--dest",
+        str(dest_repo),
+        "--product",
+        "claude",
+        "--method",
+        "symlink",
+        "--yes",
+    ]
+    runner = CliRunner()
+    assert runner.invoke(cli, args).exit_code == 0
+    r = runner.invoke(cli, args)  # second run: target exists
+    assert r.exit_code == 0, r.output
+    assert "Traceback" not in r.output
+    assert "use --force" in r.output and "0 installed, 1 skipped" in r.output
+
+
 def test_wizard_refuses_without_tty():
     # CliRunner's stdin is not a TTY, so bare `install` must fail cleanly
     r = CliRunner().invoke(cli, ["install"])

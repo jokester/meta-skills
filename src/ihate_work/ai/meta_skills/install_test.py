@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from ihate_work.ai.meta_skills import install, manifest
+from ihate_work.ai.meta_skills.errors import MetaSkillsError, TargetExists
 from ihate_work.ai.meta_skills.model import Dest, DestKind, Method, Skill, SourceKind
 
 
@@ -84,10 +85,39 @@ def test_uninstall_removes_gitignore_line(skill: Skill, repo_dest):
 
 def test_existing_target_needs_force(skill: Skill, repo_dest):
     install.execute(install.plan(skill, repo_dest, Method.COPY))
-    with pytest.raises(FileExistsError):
+    with pytest.raises(TargetExists):
         install.execute(install.plan(skill, repo_dest, Method.COPY))
+    # force-replacing a dir with a symlink goes through stage-and-swap
     install.execute(install.plan(skill, repo_dest, Method.SYMLINK), force=True)
     assert (repo_dest.skills_dir / "foo").is_symlink()
+
+
+def test_failed_copy_is_atomic(skill: Skill, repo_dest, monkeypatch):
+    def boom(*a, **kw):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(install.shutil, "copytree", boom)
+    with pytest.raises(MetaSkillsError, match="disk full"):
+        install.execute(install.plan(skill, repo_dest, Method.COPY))
+    # no half-written target, no staging leftover, nothing recorded
+    assert not (repo_dest.skills_dir / "foo").exists()
+    assert not list(repo_dest.skills_dir.glob(".staging-*"))
+    assert manifest.load(repo_dest.skills_dir) == {}
+
+
+def test_failed_force_replace_restores_old_target(skill: Skill, repo_dest, monkeypatch):
+    old = install.execute(install.plan(skill, repo_dest, Method.COPY))
+    (old / "marker.txt").write_text("old content\n")
+
+    def boom(*a, **kw):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(install.shutil, "copytree", boom)
+    with pytest.raises(MetaSkillsError):
+        install.execute(install.plan(skill, repo_dest, Method.COPY), force=True)
+    # the previous install is still intact
+    assert (old / "marker.txt").read_text() == "old content\n"
+    assert manifest.load(repo_dest.skills_dir)["foo"]["method"] == "copy"
 
 
 def test_uninstall(skill: Skill, repo_dest):
@@ -98,5 +128,19 @@ def test_uninstall(skill: Skill, repo_dest):
 
 
 def test_custom_without_rewiring_is_an_error(skill: Skill, repo_dest):
-    with pytest.raises(ValueError, match="no rewiring registered"):
+    with pytest.raises(MetaSkillsError, match="no rewiring registered"):
         install.plan(skill, repo_dest, Method.CUSTOM)
+
+
+def test_corrupt_manifest_is_quarantined(skill: Skill, repo_dest, capsys):
+    repo_dest.skills_dir.mkdir(parents=True)
+    bad = repo_dest.skills_dir / ".meta-skills.json"
+    bad.write_text("{not json")
+
+    assert manifest.load(repo_dest.skills_dir) == {}
+    assert not bad.exists()
+    assert (repo_dest.skills_dir / ".meta-skills.json.bad").is_file()
+    assert "corrupt manifest" in capsys.readouterr().err
+    # and installing afterwards works normally
+    install.execute(install.plan(skill, repo_dest, Method.COPY))
+    assert manifest.load(repo_dest.skills_dir)["foo"]["method"] == "copy"

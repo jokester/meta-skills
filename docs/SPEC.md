@@ -2,7 +2,8 @@
 
 What the skill manager must do, as observable behavior. Implementation
 notes live in `AGENTS.md`; the per-product directory survey in
-`skill-dirs.md`.
+`skill-dirs.md`; how to read an upstream's shape and pick its method in
+`external-collections.md`.
 
 ## goals & non-goals
 
@@ -18,7 +19,8 @@ Non-goals:
 - Not a skill marketplace/registry client; sources are this repo only.
 - Not a skill *authoring* tool; skills are edited directly.
 - Never edits skill content on install (except CUSTOM rewiring, which is
-  explicit and pinned).
+  explicit and pinned). Extraction *does* rewrite content, but it happens
+  before install, in one scripted pass whose every change is reported.
 
 ## the model
 
@@ -36,9 +38,24 @@ common denominator across products (see `skill-dirs.md`).
 1. **OWN** — skills authored in this repo, under `my/`.
 2. **EXTERNAL** — skills vendored as git submodules, pinned to a revision,
    laid out as `<gh-username>/<repo>/`.
+3. **REMOTE** — skills *derived* from an upstream we never vendor: a
+   recipe (`recipes.py`) pins a revision and an extraction, `./cli
+   extract` fetches a sparse slice into `.cache/` and writes installable
+   skills to `build/<gh-username>/<repo>/`. Both dirs are gitignored and
+   rebuildable; the committed trace is the report under `docs/extracts/`.
 
-A *collection* is `my/` or one submodule. Uninitialized submodules still
-appear as collections (with a hint to init), never silently vanish.
+A *collection* is `my/`, one submodule, or one recipe. A collection with
+nothing in it yet — uninitialized submodule, unextracted recipe — still
+appears, carrying the hint for how to populate it, and never silently
+vanishes.
+
+REMOTE exists for upstreams that cannot be vendored or cannot be installed
+as-is: monorepo catalogues that are gigabytes on disk, or whose tree holds
+duplicate registries, content-free stubs, cross-bundle references and
+reference material that is not a skill at all (shape E in
+`external-collections.md`). The pin lives in the recipe next to the steps
+that assume that tree's shape, and the extractor re-checks that shape on
+every run rather than trusting it.
 
 ### dest = root × product
 
@@ -88,11 +105,41 @@ Resolution rules:
    manifest). The dest repo's own root `.gitignore` — tracked, human-owned
    — is never edited.
 2. **COPY records provenance** (skill id + source rev), so drift is
-   detectable later and re-install can be offered.
+   detectable later and re-install can be offered. A REMOTE skill's rev is
+   its recipe's pin, so bumping the pin drifts every install made from it.
 3. All installs go through the manager — hand-copying bypasses the rules
    above and is out of contract.
 
 (TODO evaluate if we need more)
+
+## error handling
+
+Errors are part of the product surface:
+
+1. **Expected failures never traceback.** Everything foreseeable (target
+   exists, unwritable dest, missing rewiring, vanished source, unusable
+   path) ends as a one-line message. A traceback means a bug in the
+   manager, and is deliberately left visible.
+2. **Atomic installs — no mutation without confidence.** Every install is
+   preflighted (source present, target free or `--force`, dest writable,
+   rewiring registered) before *any* mutable operation. Content lands via
+   stage-then-swap inside the skills dir: a failure mid-copy can never
+   leave a half-written skill at the target, and a failed `--force`
+   replace restores the previous install. Provenance is recorded only
+   after content is in place.
+3. **Batch = validate all, then keep going.** The whole batch is
+   preflighted and shown (with per-skill skip/fail annotations) before the
+   confirm. During execution a failing skill is reported and the rest
+   still run; the run ends with a summary
+   (`N installed, N skipped (already exist — use --force), N failed`) and
+   a non-zero exit iff anything *failed*. "Already exists without
+   `--force`" is a skip, not a failure.
+4. **Metadata damage is survivable.** A corrupt manifest is quarantined
+   (`.meta-skills.json.bad`) with a warning and treated as empty — it's
+   rebuildable, transient data and must never block an install.
+5. **git degrades, never crashes.** An unknowable source rev (empty repo,
+   git missing) becomes "provenance unknown" in `status` instead of an
+   error.
 
 ## install metadata
 
@@ -181,6 +228,27 @@ If an upstream ships its own installer, plain COPY/SYMLINK may be wrong.
 current pinned rev. No registered rewiring for `(collection, rev)` — for
 example right after bumping the submodule — is a hard error telling the
 user the rewiring must be revisited.
+
+### UC8b — take a monorepo catalogue (REMOTE)
+
+`./cli extract <collection>` fetches the pinned rev into `.cache/` and
+rebuilds `build/<collection>/` from scratch: it selects the roots that
+hold bundles, drops what should not ship (denylisted dirs, content-free
+stubs, and — only for stubs — whatever relied on them), normalizes each
+bundle so it survives a flat install, inlines the context the upstream
+runtime used to inject, synthesizes bundles for material that ships no
+`SKILL.md`, carries the licenses with a record of every modification, and
+re-checks the result before publishing it.
+
+Nothing it produces is hand-maintained: `build/` and `.cache/` are
+gitignored, and re-running reproduces both from the pin. The committed
+half is `docs/extracts/<collection>.md`, which is how a bumped pin gets
+reviewed — the diff shows what upstream added, dropped, or renamed.
+
+Extraction fails loudly rather than shipping a bad build: a root that
+moved or shrank, a bundle whose name does not match its directory, a
+bundle with no description. A half-written extract is impossible — the
+staged tree is swapped into place only once every stage has passed.
 
 ### UC9 — one dest, several products
 

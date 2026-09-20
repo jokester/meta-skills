@@ -7,7 +7,8 @@ import sys
 import click
 
 from . import dest as dest_mod
-from . import discover, install, manifest, tui
+from . import discover, extract, install, manifest, recipes, tui
+from .errors import MetaSkillsError, TargetExists
 from .model import Dest, DestKind, Method, Skill
 from .products import PRODUCTS
 
@@ -46,7 +47,7 @@ def _root_dests(dest_path: str) -> list[Dest]:
             f"{e.path} is ambiguous ({options}) — point --dest at the repo "
             f"root, or at a dir that already contains one of: {markers}"
         )
-    except ValueError as e:
+    except MetaSkillsError as e:
         raise click.ClickException(str(e))
 
 
@@ -81,17 +82,70 @@ def _narrow_products(cands: list[Dest], product_flags: tuple[str, ...]) -> list[
 def list_() -> None:
     """List all known skills, grouped by collection."""
     for col in discover.discover():
-        if not col.initialized:
-            click.secho(
-                f"{col.name}  (not initialized — run: git submodule update --init {col.name})",
-                fg="yellow",
-            )
+        if col.hint and not col.skills:
+            click.secho(f"{col.name}  ({col.hint})", fg="yellow")
             continue
         click.secho(col.name, bold=True)
+        if col.hint:
+            click.secho(f"  ! {col.hint}", fg="yellow")
         for s in col.skills:
             click.echo(f"  {s.name}")
         if not col.skills:
             click.echo("  (no SKILL.md found)")
+
+
+@cli.command("extract")
+@click.argument("collections", nargs=-1)
+@click.option(
+    "--no-fetch", is_flag=True, help="use the cache as-is; never touch the network"
+)
+def extract_(collections: tuple[str, ...], no_fetch: bool) -> None:
+    """Rebuild COLLECTIONS' skills from their pinned upstream (default: all).
+
+    Everything the extract produces lives under build/ and is derived: it
+    is safe to delete, and re-running this reproduces it from the rev
+    pinned in recipes.py. The committed side is the report under
+    docs/extracts/, which is what a bumped pin should be reviewed through.
+    """
+    chosen = recipes.all_recipes()
+    if collections:
+        by_name = {r.collection: r for r in chosen}
+        unknown = sorted(set(collections) - set(by_name))
+        if unknown:
+            known = ", ".join(sorted(by_name)) or "(none registered)"
+            raise click.ClickException(
+                f"no recipe for {', '.join(unknown)} — known: {known}"
+            )
+        chosen = [by_name[c] for c in collections]
+
+    n_failed = 0
+    for recipe in chosen:
+        click.secho(f"{recipe.collection}  @ {recipe.rev[:7]}", bold=True)
+        try:
+            result = extract.run(recipe, discover.REPO_ROOT, do_fetch=not no_fetch)
+        except MetaSkillsError as e:
+            n_failed += 1
+            click.secho(f"  failed: {e}", fg="red")
+            continue
+        report = (
+            discover.REPO_ROOT
+            / "docs"
+            / "extracts"
+            / f"{recipe.collection.replace('/', '-')}.md"
+        )
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(extract.render_report(recipe, result), encoding="utf-8")
+        for w in result.warnings:
+            click.secho(f"  ! {w}", fg="yellow")
+        click.secho(
+            f"  {len(result.kept)} extracted + {len(result.generated)} generated, "
+            f"{len(result.dropped)} dropped, "
+            f"{result.size_bytes / 1_000_000:.1f} MB -> {result.out}",
+            fg="green",
+        )
+        click.echo(f"  report: {report.relative_to(discover.REPO_ROOT)}")
+    if n_failed:
+        sys.exit(1)
 
 
 @cli.command("install")
@@ -138,18 +192,55 @@ def install_(
     else:
         m = _DEFAULT_METHOD[dests[0].kind]
 
-    plans = [install.plan(s, d, m) for d in dests for s in chosen]
+    # validate everything BEFORE confirming or mutating anything
+    try:
+        plans = [install.plan(s, d, m) for d in dests for s in chosen]
+    except MetaSkillsError as e:
+        raise click.ClickException(str(e))
+
+    viable: list = []
+    n_skipped = n_failed = 0
     for p in plans:
+        try:
+            install.preflight(p, force=force)
+        except TargetExists:
+            n_skipped += 1
+            click.secho(
+                f"  {p.skill.id}  (skip: {p.target} exists — use --force)",
+                fg="yellow",
+            )
+            continue
+        except MetaSkillsError as e:
+            n_failed += 1
+            click.secho(f"  {p.skill.id}  (cannot install: {e})", fg="red")
+            continue
+        viable.append(p)
         click.echo(f"  {p.skill.id}  --{p.method.value}-->  {p.target}")
     # each warning once per run, not once per skill
     for w in dict.fromkeys(w for p in plans for w in p.warnings):
         click.secho(f"! {w}", fg="yellow")
-    if not (yes or click.confirm("proceed?", default=True)):
-        raise click.Abort()
 
-    for p in plans:
-        target = install.execute(p, force=force)
+    n_installed = 0
+    if viable and not (yes or click.confirm("proceed?", default=True)):
+        raise click.Abort()
+    for p in viable:
+        try:
+            target = install.execute(p, force=force)
+        except MetaSkillsError as e:
+            n_failed += 1
+            click.secho(f"failed {p.skill.id}: {e}", fg="red")
+            continue
+        n_installed += 1
         click.secho(f"installed {p.skill.id} -> {target}", fg="green")
+
+    summary = f"{n_installed} installed"
+    if n_skipped:
+        summary += f", {n_skipped} skipped (already exist — use --force)"
+    if n_failed:
+        summary += f", {n_failed} failed"
+    click.echo(summary)
+    if n_failed:
+        sys.exit(1)
 
 
 @cli.command()
@@ -166,9 +257,12 @@ def status(dest_path: str) -> None:
         click.secho(f"{d.product}: {d.skills_dir}", bold=True)
         for name, e in sorted(entries.items()):
             skill = by_id.get(e["skill"])
+            current = install.source_rev(skill) if skill else None
             if skill is None:
                 state = click.style("source gone", fg="red")
-            elif install.source_rev(skill) != e["source_rev"]:
+            elif e["source_rev"] is None or current is None:
+                state = click.style("provenance unknown", fg="yellow")
+            elif current != e["source_rev"]:
                 state = click.style("drifted (source rev changed)", fg="yellow")
             else:
                 state = click.style("ok", fg="green")
@@ -226,9 +320,17 @@ def uninstall(
     if not (yes or click.confirm("proceed?", default=False)):
         raise click.Abort()
 
+    n_failed = 0
     for d, name in picked:
-        install.uninstall(d, name)
+        try:
+            install.uninstall(d, name)
+        except MetaSkillsError as e:
+            n_failed += 1
+            click.secho(f"failed {name}: {e}", fg="red")
+            continue
         click.secho(f"removed {d.skills_dir / name}", fg="green")
+    if n_failed:
+        sys.exit(1)
 
 
 def _match_skills(queries: tuple[str, ...]) -> list[Skill]:

@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from ihate_work.ai.meta_skills import dest
+from ihate_work.ai.meta_skills.errors import MetaSkillsError
 from ihate_work.ai.meta_skills.model import DestKind
 from ihate_work.ai.meta_skills.products import PRODUCTS
 
@@ -71,10 +72,10 @@ def test_product_global_dir_is_specific():
 
 
 def test_unrecognizable_dest(tmp_path: Path):
-    with pytest.raises(ValueError, match="not a recognizable dest"):
+    with pytest.raises(MetaSkillsError, match="not a recognizable dest"):
         dest.candidates(tmp_path)
 
 
 def test_missing_dir(tmp_path: Path):
-    with pytest.raises(ValueError, match="not a directory"):
+    with pytest.raises(MetaSkillsError, match="not a directory"):
         dest.candidates(tmp_path / "nope")

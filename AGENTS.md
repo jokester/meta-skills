@@ -10,6 +10,8 @@ Docs split:
   manager does; change it when behavior changes.
 - `docs/skill-dirs.md` — survey of per-product skill dir conventions;
   mirrored in code by `products.py`.
+- `docs/external-collections.md` — how to read an upstream repo's shape and
+  pick its install method, plus the resulting per-collection notes.
 - this file — repo layout, code map, dev workflow. **How** it's built.
 
 ## repo layout
@@ -18,6 +20,11 @@ Docs split:
 - `<gh-username>/<repo>/` — external skill collections, vendored as git
   submodules (EXTERNAL), laid out by upstream GitHub username, e.g.
   `garrytan/gstack`, `obra/superpowers`, `mattpocock/skills`.
+- `.cache/<gh-username>/<repo>/` — sparse, shallow checkouts of REMOTE
+  upstreams we never vendor. Gitignored; written by `./cli extract`.
+- `build/<gh-username>/<repo>/` — the installable skills extracted from
+  those. Gitignored and fully derived: delete it freely, re-run `./cli
+  extract` to get it back. The committed trace is `docs/extracts/`.
 - `src/ihate_work/ai/meta_skills/` — the manager code (see "coding" below).
   `ihate_work` and `ihate_work.ai` are namespace packages (no `__init__.py`),
   shared with my other repos.
@@ -26,14 +33,17 @@ Docs split:
 
 ## the model (summary — `docs/SPEC.md` is authoritative)
 
-An install = (skill source, dest, method): source OWN (`my/`) or EXTERNAL
-(submodule, pinned rev); dest = root (HOME / REPO / DIR) × product
+An install = (skill source, dest, method): source OWN (`my/`), EXTERNAL
+(submodule, pinned rev) or REMOTE (extracted from a recipe's pin into
+`build/`); dest = root (HOME / REPO / DIR) × product
 (`.claude`, `.codex`, `.pi`, `.omp`, `.agents` — table in `products.py`);
 method COPY / SYMLINK / CUSTOM. Load-bearing rules to keep in mind while
 coding: never resolve an ambiguous dest silently, never hardcode a product
 convention, REPO×SYMLINK must warn + gitignore, COPY must record
 provenance, CUSTOM rewiring is pinned to `(collection, rev)` and fails
-loudly when stale. Details, metadata design, and use cases: `docs/SPEC.md`.
+loudly when stale, extraction re-checks upstream's shape and refuses to
+publish a build that fails it. Details, metadata design, and use cases:
+`docs/SPEC.md`.
 
 ## coding
 
@@ -45,17 +55,34 @@ collection of skills, into a new or existing dest. Module map:
 - `model.py` — the vocabulary: `SourceKind` (OWN/EXTERNAL), `DestKind`
   (HOME/REPO/DIR), `Method` (COPY/SYMLINK/CUSTOM), and the `Skill`, `Dest`,
   `InstallPlan` dataclasses.
-- `discover.py` — find skills (dirs containing `SKILL.md`) in `my/` and in
-  each submodule; uninitialized submodules still show up as collections.
+- `errors.py` — `MetaSkillsError` for every *expected* failure (the CLI
+  boundary converts exactly these to one-line messages; anything else may
+  traceback — it's a bug) and `TargetExists` (CLI treats as a skip).
+- `discover.py` — find skills (dirs containing `SKILL.md`) in `my/`, in
+  each submodule, and in each recipe's `build/` output; collections with
+  nothing in them yet still show up, carrying the hint that says what to
+  run (`git submodule update --init`, or `./cli extract`).
 - `products.py` — the per-product skill dir table (marker, project skills
   dir, global skills dir); kept in sync with `docs/skill-dirs.md`.
+- `fsutil.py` — `remove()` and `swap()`: the stage-then-swap primitives
+  every mutating path uses (installs and extractions alike).
+- `recipes.py` — REMOTE collections: url, pinned rev, the sparse slice to
+  fetch, and the extraction knobs (roots + their sanity floors, denylist,
+  stub marker, craft dir, link rewrites, generators). Also the
+  open-design design-systems router generator.
+- `extract.py` — the extraction engine: fetch → collect → filter →
+  normalize → enrich → generate → attribute → verify, publishing
+  `build/<collection>` by one swap at the end. Frontmatter edits are line
+  surgery, never a YAML round-trip.
 - `dest.py` — classify a target path into per-product `Dest` candidates
   (root: HOME > REPO > DIR), raising `AmbiguousRoot` instead of walking up
   to a repo root silently.
 - `install.py` — `plan()` validates a triple and collects the special-rule
-  warnings; `execute()` performs COPY/SYMLINK/CUSTOM, records provenance,
-  and maintains the manager-owned skills-dir `.gitignore` (symlinks +
-  manifest transient; the dest repo's root .gitignore is never touched).
+  warnings; `preflight()` guarantees no mutation happens unless the install
+  will succeed; `execute()` performs COPY/SYMLINK/CUSTOM via
+  stage-then-swap (atomic per plan), records provenance, and maintains the
+  manager-owned skills-dir `.gitignore` (symlinks + manifest transient; the
+  dest repo's root .gitignore is never touched).
 - `manifest.py` — `.meta-skills.json` next to installed skills: which skill,
   which method, which source rev — enables drift detection in `status`.
 - `rewire.py` — registry of CUSTOM upstream adaptations, keyed by
@@ -66,7 +93,8 @@ collection of skills, into a new or existing dest. Module map:
 - `tui.py` — questionary-based interactive prompts (skill checkboxes, dest
   path, method select). TTY-only; raises cleanly without one, so scripted
   use (explicit args + `--yes`) never lands in a prompt.
-- `cli.py` — click commands: `list`, `install`, `status`, `uninstall`.
+- `cli.py` — click commands: `list`, `extract`, `install`, `status`,
+  `uninstall`.
   `install`/`uninstall` with no positional args run the interactive wizard;
   with args they are fully scriptable.
 
@@ -93,4 +121,12 @@ globally. Never `pip install` by hand, never activate the venv manually.
 Adding a dependency = edit `requirements.txt`, then `make deps`.
 
 Adding an external skill collection = `git submodule add <url>
-<gh-username>/<repo>`, then commit `.gitmodules` + the pinned rev.
+<gh-username>/<repo>`, then commit `.gitmodules` + the pinned rev. Before
+committing, categorize it per `docs/external-collections.md` (shape → method)
+and add its note there.
+
+Adding a REMOTE collection (shape E) = write a `Recipe` in `recipes.py`
+with the upstream url, a full-sha pin, the sparse slice, and each root
+with a sanity floor; run `./cli extract <collection>`; commit the recipe
+and the regenerated `docs/extracts/<collection>.md`. Bumping the pin is
+the same loop — the report's diff is the review.

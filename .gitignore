@@ -3,3 +3,7 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+
+# derived: upstream caches (./cli extract) and extraction output
+.cache/
+build/

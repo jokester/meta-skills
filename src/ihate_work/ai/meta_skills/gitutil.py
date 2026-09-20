@@ -21,8 +21,12 @@ def repo_root_of(path: Path) -> Path | None:
         return None
 
 
-def head_rev(repo_root: Path) -> str:
-    return _git(repo_root, "rev-parse", "HEAD")
+def head_rev(repo_root: Path) -> str | None:
+    """HEAD rev, or None when unknowable (no commits yet, git missing)."""
+    try:
+        return _git(repo_root, "rev-parse", "HEAD")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
 
 
 def submodule_paths(repo_root: Path) -> list[str]:
@@ -42,7 +46,10 @@ def submodule_paths(repo_root: Path) -> list[str]:
 
 def submodule_rev(repo_root: Path, sub_path: str) -> str | None:
     """The rev a submodule is pinned to (works even when uninitialized)."""
-    out = _git(repo_root, "ls-files", "-s", "--", sub_path)
+    try:
+        out = _git(repo_root, "ls-files", "-s", "--", sub_path)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
     for line in out.splitlines():
         mode, sha, _rest = line.split(maxsplit=2)
         if mode == "160000":
@@ -68,7 +75,9 @@ def skills_gitignore_add(skills_dir: Path, names: tuple[str, ...] = ()) -> None:
     gi = skills_dir / ".gitignore"
     lines = gi.read_text().splitlines() if gi.is_file() else []
     if not lines:
-        lines = [*_BASELINE, f"/{MANIFEST_NAME}"]
+        # MANIFEST glob also covers the .bad quarantine; staging/trash are
+        # the install swap's short-lived intermediates
+        lines = [*_BASELINE, f"/{MANIFEST_NAME}*", "/.staging-*", "/.trash-*"]
     for name in names:
         if f"/{name}" not in lines:
             lines.append(f"/{name}")

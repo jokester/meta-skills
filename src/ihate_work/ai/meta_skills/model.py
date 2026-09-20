@@ -13,6 +13,7 @@ from pathlib import Path
 class SourceKind(enum.Enum):
     OWN = "own"  # authored in this repo, under my/
     EXTERNAL = "external"  # vendored git submodule, pinned to a rev
+    REMOTE = "remote"  # not vendored: fetched to a cache at a pin in recipes.py
 
 
 class DestKind(enum.Enum):

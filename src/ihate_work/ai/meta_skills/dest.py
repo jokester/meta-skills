@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .errors import MetaSkillsError
 from .model import Dest, DestKind
 from .products import PRODUCTS, by_key
 
@@ -62,12 +63,12 @@ def candidates(raw: str | Path) -> list[Dest]:
 
     Returns one Dest per product for an unambiguous root (or a single Dest
     when the path itself names one product's global dir). Raises
-    AmbiguousRoot when the root reading is unclear, ValueError when the
+    AmbiguousRoot when the root reading is unclear, MetaSkillsError when the
     path is no dest at all.
     """
     path = Path(raw).expanduser().resolve()
     if not path.is_dir():
-        raise ValueError(f"not a directory: {path}")
+        raise MetaSkillsError(f"not a directory: {path}")
     home = Path.home()
 
     if path == home:
@@ -92,7 +93,7 @@ def candidates(raw: str | Path) -> list[Dest]:
         )
 
     markers = ", ".join(p.marker for p in PRODUCTS)
-    raise ValueError(
+    raise MetaSkillsError(
         f"{path} is not a recognizable dest: not a global skill dir, "
         f"not a git repo root, and has none of: {markers}"
     )
