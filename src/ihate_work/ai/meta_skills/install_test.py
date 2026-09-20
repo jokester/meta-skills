@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from ihate_work.ai.meta_skills import install, manifest
+from ihate_work.ai.meta_skills import gitutil, install, manifest
 from ihate_work.ai.meta_skills.errors import MetaSkillsError, TargetExists
 from ihate_work.ai.meta_skills.model import Dest, DestKind, Method, Skill, SourceKind
 
@@ -73,6 +73,38 @@ def test_copy_manifest_is_transient_but_copy_is_not(skill: Skill, repo_dest):
     target = install.execute(install.plan(skill, repo_dest, Method.COPY))
     assert _git_ignores(repo_dest.root, repo_dest.skills_dir / ".meta-skills.json")
     assert not _git_ignores(repo_dest.root, target)  # the snapshot is committable
+
+
+def test_gitignore_section_preserves_user_lines(skill: Skill, repo_dest):
+    skills_dir = repo_dest.skills_dir
+    skills_dir.mkdir(parents=True)
+    (skills_dir / ".gitignore").write_text("# my own rule\n/hand-managed\n")
+
+    install.execute(install.plan(skill, repo_dest, Method.SYMLINK))
+    text = (skills_dir / ".gitignore").read_text()
+    assert text.startswith("# my own rule\n/hand-managed\n")
+    section = text[text.index(gitutil.SECTION_START) : text.index(gitutil.SECTION_END)]
+    assert "/foo" in section
+
+    install.uninstall(repo_dest, "foo")
+    text = (skills_dir / ".gitignore").read_text()
+    assert "# my own rule" in text and "/hand-managed" in text  # untouched
+    assert "\n/foo\n" not in text
+    assert gitutil.SECTION_START in text  # section stays, with the baseline
+
+
+def test_no_gitignore_outside_a_git_repo(skill: Skill, tmp_path: Path):
+    root = tmp_path / "plain-dir"
+    (root / ".claude").mkdir(parents=True)
+    d = Dest(
+        kind=DestKind.DIR,
+        root=root,
+        skills_dir=root / ".claude" / "skills",
+        product="claude",
+    )
+    install.execute(install.plan(skill, d, Method.SYMLINK))
+    assert (d.skills_dir / "foo").is_symlink()
+    assert not (d.skills_dir / ".gitignore").exists()
 
 
 def test_uninstall_removes_gitignore_line(skill: Skill, repo_dest):

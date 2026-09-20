@@ -114,8 +114,9 @@ def execute(p: InstallPlan, *, force: bool = False) -> Path:
         method=p.method.value,
         source_rev=source_rev(p.skill),
     )
-    # keep the manager's transient files (and symlinked skills) out of git
-    if p.dest.kind in (DestKind.REPO, DestKind.DIR):
+    # keep the manager's transient files (and symlinked skills) out of git —
+    # only relevant when the dest actually sits inside a git repo
+    if gitutil.in_git_worktree(skills_dir):
         names = (p.skill.name,) if p.method is Method.SYMLINK else ()
         gitutil.skills_gitignore_add(skills_dir, names)
     return target

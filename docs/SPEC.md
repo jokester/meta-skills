@@ -100,10 +100,14 @@ Resolution rules:
 1. **REPO × SYMLINK**: only suitable while *evaluating* a skill —
    collaborators won't have the symlink target. The user must be warned
    (once per install run, not once per skill), and the links must be
-   transient in the dest repo by default: ignored via a `.gitignore` the
-   manager owns *inside the skills dir* (which also ignores itself and the
-   manifest). The dest repo's own root `.gitignore` — tracked, human-owned
-   — is never edited.
+   transient in the dest repo by default: ignored via a `.gitignore` at
+   the skills dir (e.g. `<repo>/.claude/skills/.gitignore`). That file is
+   written only when the dest sits inside a git repo, and every manager
+   line lives in one marker-delimited section
+   (`# added by jokester/meta-skills START` … `END`) so adds/removes are
+   surgical and human-written lines outside the section survive verbatim.
+   The section also ignores the file itself and the manifest. The dest
+   repo's own root `.gitignore` — tracked, human-owned — is never edited.
 2. **COPY records provenance** (skill id + source rev), so drift is
    detectable later and re-install can be offered. A REMOTE skill's rev is
    its recipe's pin, so bumping the pin drifts every install made from it.
