@@ -1,0 +1,7 @@
+#!/bin/sh
+# Wrapper for the agent config editor. Preserves the caller's cwd (the
+# repo scope is resolved from cwd), but always runs make/python from here.
+set -eu
+here="$(cd "$(dirname "$0")" && pwd)"
+make -C "$here" -s deps >/dev/null
+exec "$here/venv/bin/python" -m ihate_work.ai.agent_config_editor "$@"

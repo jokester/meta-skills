@@ -107,6 +107,24 @@ The wrapper: ensures the venv exists (`make -s deps`), then execs
 `venv/bin/python -m ihate_work.ai.meta_skills`. It preserves the caller's
 cwd, so the manager can treat cwd as the default install dest.
 
+### `ihate_work.ai.agent_config_editor`
+
+A sibling program (wrapper: `./agent-config`): a TUI that manages agent MCP
+servers. Claude only for now, two stores: repo scope `<repo>/.mcp.json`
+(repo resolved from cwd) and user scope `~/.claude.json` (top-level
+`mcpServers`; Claude's "local" scope inside its `projects` section is not
+managed yet). It reuses meta_skills (`errors`, `tui`, `gitutil`) and its
+safety rules: only the `mcpServers` key is ever touched — every other key
+is preserved verbatim; writes validate first, back up to
+`*.bak-agent-config-editor`, then atomically replace; a corrupt config is
+refused untouched (these files are Claude's, never quarantined). Modules:
+
+- `claude_config.py` — the store layer (locate/load/validate/save); the
+  part a second product would need to generalize.
+- `cli.py` — bare invocation opens the TUI loop (pick store → add /
+  remove / switch / quit); `list` and `remove --scope … --yes` are
+  scriptable. Adding is TUI-only for now (scripted add = edit the JSON).
+
 ## dev workflow
 
 The venv is created and updated **only** via the Makefile (pattern copied
