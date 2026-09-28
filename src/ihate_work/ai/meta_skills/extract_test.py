@@ -3,7 +3,7 @@
 All of these run against a synthetic upstream tree: the point is the
 stages, not any particular upstream. `fetch()` is the one part these do
 not cover — it is git-over-network, exercised by actually running
-`./cli extract`.
+`./skill extract`.
 """
 
 from __future__ import annotations

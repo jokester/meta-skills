@@ -39,7 +39,7 @@ common denominator across products (see `skill-dirs.md`).
 2. **EXTERNAL** — skills vendored as git submodules, pinned to a revision,
    laid out as `<gh-username>/<repo>/`.
 3. **REMOTE** — skills *derived* from an upstream we never vendor: a
-   recipe (`recipes.py`) pins a revision and an extraction, `./cli
+   recipe (`recipes.py`) pins a revision and an extraction, `./skill
    extract` fetches a sparse slice into `.cache/` and writes installable
    skills to `build/<gh-username>/<repo>/`. Both dirs are gitignored and
    rebuildable; the committed trace is the report under `docs/extracts/`.
@@ -235,7 +235,7 @@ user the rewiring must be revisited.
 
 ### UC8b — take a monorepo catalogue (REMOTE)
 
-`./cli extract <collection>` fetches the pinned rev into `.cache/` and
+`./skill extract <collection>` fetches the pinned rev into `.cache/` and
 rebuilds `build/<collection>/` from scratch: it selects the roots that
 hold bundles, drops what should not ship (denylisted dirs, content-free
 stubs, and — only for stubs — whatever relied on them), normalizes each

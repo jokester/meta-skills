@@ -1,4 +1,4 @@
-"""Interactive CLI. Run via ./cli at the repo root."""
+"""Interactive CLI. Run via ./skill at the repo root."""
 
 from __future__ import annotations
 

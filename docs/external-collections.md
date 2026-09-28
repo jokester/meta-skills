@@ -60,7 +60,7 @@ a large share of the entries are frontmatter pointing at an upstream we do
 not have, bundles reach each other by relative path, and the best material
 may not be in skill form at all. → REMOTE: pin a rev in `recipes.py`,
 fetch a sparse slice into `.cache/`, and derive `build/<collection>/` with
-`./cli extract`. No submodule, nothing vendored, nothing hand-curated.
+`./skill extract`. No submodule, nothing vendored, nothing hand-curated.
 *Seen in:* `nexu-io/open-design`.
 
 Telling E from A is a size-and-duplication question, not a taste one:

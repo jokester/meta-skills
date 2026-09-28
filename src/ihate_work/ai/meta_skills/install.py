@@ -39,7 +39,7 @@ def plan(skill: Skill, dest: Dest, method: Method) -> InstallPlan:
         if recipe is not None and extract.is_stale(REPO_ROOT, recipe):
             raise MetaSkillsError(
                 f"{skill.collection} was extracted at an older pin — "
-                f"re-run: ./cli extract {skill.collection}"
+                f"re-run: ./skill extract {skill.collection}"
             )
     if dest.kind is DestKind.REPO and method is Method.SYMLINK:
         warnings.append(

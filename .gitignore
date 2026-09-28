@@ -4,6 +4,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# derived: upstream caches (./cli extract) and extraction output
+# derived: upstream caches (./skill extract) and extraction output
 .cache/
 build/

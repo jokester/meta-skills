@@ -4,7 +4,7 @@ A skill is any directory containing SKILL.md.
 OWN skills live under my/; EXTERNAL skills live inside git submodules
 (paths read from .gitmodules, so uninitialized submodules are still listed
 as collections — just with no skills in them yet); REMOTE skills live under
-build/, derived by `./cli extract` from an upstream we never vendor (see
+build/, derived by `./skill extract` from an upstream we never vendor (see
 recipes.py). A collection that has nothing to offer yet never vanishes —
 it carries the hint that says how to populate it.
 """
@@ -65,11 +65,11 @@ def _remote(recipe: recipes.Recipe, repo_root: Path) -> Collection:
     path = extract.build_dir(repo_root, recipe.collection)
     state = extract.state_of(repo_root, recipe.collection)
     if not state:
-        hint = f"not extracted — run: ./cli extract {recipe.collection}"
+        hint = f"not extracted — run: ./skill extract {recipe.collection}"
     elif state.get("rev") != recipe.rev:
         hint = (
             f"extract is stale (built at {str(state.get('rev'))[:7]}, recipe "
-            f"pins {recipe.rev[:7]}) — re-run: ./cli extract {recipe.collection}"
+            f"pins {recipe.rev[:7]}) — re-run: ./skill extract {recipe.collection}"
         )
     else:
         hint = None
