@@ -20,20 +20,26 @@ Adapt each check to what the repo actually has; skip checks with no subject.
 
 ### 2. Referenced paths exist
 
-For each `.claude/skills/*/SKILL.md` and each doc, extract path-like references and check they exist on disk. Red flags regardless of existence:
+For each `.claude/skills/*/SKILL.md`, each doc, CLAUDE.md, and the config files that cite docs in comments (`Makefile`, lint/test/tool configs, conventions tests), extract path-like references and doc names and check they exist on disk — a renamed doc leaves its old name in exactly these places. Red flags regardless of existence:
 
 - **Absolute checkout paths** (`/home/...`, `/Users/...`, `~/...`) inside a skill or doc — worktrees move; paths must be repo-root-relative. (Deliberate cross-repo pointers are the exception, and should say so.)
 - References to renamed files — grep the old basename across the repo to suggest the successor.
 
 ### 3. Index completeness
 
-For each index the repo maintains (e.g. `journals/index.md`, any `index-*.md`, a memory index), compare its entries against the files in its scope (`comm` on sorted lists): every in-scope file indexed, no entry pointing at a missing file, no obviously stale hooks.
+For each index the repo maintains (e.g. `journals/index.md`, the rulebook's index of topic rules, a spec index, any `index-*.md`, a memory index, a package registry against the package dirs), compare its entries against the files in its scope (`comm` on sorted lists): every in-scope file indexed, no entry pointing at a missing file, no obviously stale hooks.
 
-### 4. Workspace hygiene
+### 4. Skills
+
+- If `.claude/skills/.meta-skills.json` exists: every skill it lists has a directory, and every directory not listed there is a repo-native skill (named in `.claude/skills/README.md` when the repo keeps one). A listed entry with no directory is a fold or rename awaiting its backport to the collection.
+- A skill that names a doc, a Makefile target, or a path names one that exists (check 2 covers the paths; check the targets against the Makefile).
+- Vocabulary: a skill uses the repo's doc-class names only of docs of that class.
+
+### 5. Workspace hygiene
 
 - Committed build artifacts: `git ls-files | grep -E '/(dist|out|build)/'`
 - Leftover template/scaffold names in manifests.
-- Anything the repo's own rulebook makes mechanically checkable (version/catalog drift, naming rules) — read the rulebook and run what is cheap to check.
+- Anything the repo's own rulebook makes mechanically checkable (version/catalog drift, naming rules, doc budgets, marker grammar) but no conventions test or lint covers yet — run what is cheap to check, and propose the guard (the Ratchet: a recurring finding becomes a mechanism).
 
 ## Report format
 

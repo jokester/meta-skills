@@ -21,14 +21,14 @@ Docs split:
   submodules (EXTERNAL), laid out by upstream GitHub username, e.g.
   `garrytan/gstack`, `obra/superpowers`, `mattpocock/skills`.
 - `.cache/<gh-username>/<repo>/` — sparse, shallow checkouts of REMOTE
-  upstreams we never vendor. Gitignored; written by `./cli extract`.
+  upstreams we never vendor. Gitignored; written by `./skill extract`.
 - `build/<gh-username>/<repo>/` — the installable skills extracted from
-  those. Gitignored and fully derived: delete it freely, re-run `./cli
+  those. Gitignored and fully derived: delete it freely, re-run `./skill
   extract` to get it back. The committed trace is `docs/extracts/`.
 - `src/ihate_work/ai/meta_skills/` — the manager code (see "coding" below).
   `ihate_work` and `ihate_work.ai` are namespace packages (no `__init__.py`),
   shared with my other repos.
-- `cli`, `Makefile`, `requirements.txt`, `pyproject.toml` — tooling entry
+- `skill`, `agent-config`, `Makefile`, `requirements.txt`, `pyproject.toml` — tooling entry
   points (see "dev workflow" below).
 
 ## the model (summary — `docs/SPEC.md` is authoritative)
@@ -61,7 +61,7 @@ collection of skills, into a new or existing dest. Module map:
 - `discover.py` — find skills (dirs containing `SKILL.md`) in `my/`, in
   each submodule, and in each recipe's `build/` output; collections with
   nothing in them yet still show up, carrying the hint that says what to
-  run (`git submodule update --init`, or `./cli extract`).
+  run (`git submodule update --init`, or `./skill extract`).
 - `products.py` — the per-product skill dir table (marker, project skills
   dir, global skills dir); kept in sync with `docs/skill-dirs.md`.
 - `fsutil.py` — `remove()` and `swap()`: the stage-then-swap primitives
@@ -99,9 +99,9 @@ collection of skills, into a new or existing dest. Module map:
   with args they are fully scriptable.
 
 Tests are colocated as `*_test.py` (vibra convention). Entry point is
-`__main__.py`; run it via `./cli`, not by importing directly.
+`__main__.py`; run it via `./skill`, not by importing directly.
 
-### `./cli`
+### `./skill`
 
 The wrapper: ensures the venv exists (`make -s deps`), then execs
 `venv/bin/python -m ihate_work.ai.meta_skills`. It preserves the caller's
@@ -145,6 +145,6 @@ and add its note there.
 
 Adding a REMOTE collection (shape E) = write a `Recipe` in `recipes.py`
 with the upstream url, a full-sha pin, the sparse slice, and each root
-with a sanity floor; run `./cli extract <collection>`; commit the recipe
+with a sanity floor; run `./skill extract <collection>`; commit the recipe
 and the regenerated `docs/extracts/<collection>.md`. Bumping the pin is
 the same loop — the report's diff is the review.

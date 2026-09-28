@@ -1,178 +1,143 @@
 ---
 name: spawn-worktree
-description: Use when the user asks to do code change in a temporary git worktree
-allowed-tools: [Read, Glob, Grep, Bash, Edit, Write, Agent]
+description: "The worktree mechanism: set up a temporary git worktree and branch, develop and check in it, then bring the branch back — one fresh-context review of the whole diff, no TODO left in a spec, rebase, ff-only merge, clean up. Used by the workflow skill; use directly for a small change the human asks to do in a worktree."
+allowed-tools: [Read, Glob, Grep, Bash, Edit, Write, Agent, Skill]
 ---
 
 # spawn-worktree — Isolated change in a temporary git worktree
 
-Do a scoped code change in a throwaway git worktree, then fast-forward it back into the
-current branch and clean up. The worktree is fully isolated from the main one.
+Do a scoped change in a throwaway worktree, review it, fast-forward it into the current branch, and
+clean up. The worktree is fully isolated from the main one. This is the **mechanism**; the session's
+phases are `workflow`'s and one task's brief is `code-impl`'s. Used directly, the change must still
+be **locally testable** — the repo's check target proves it with no running service (DB, broker,
+daemon), secret, `.env`, or remote API; pulling dep *packages* is fine — and its spec edit rides
+the same branch (spec first). If it can't be verified that way, stop and tell the human before
+creating anything.
 
-Capitalized words below are placeholders to replace at runtime:
-- `SUFFIX` — a short kebab tag for this change (e.g. `fix-slack-retry`). Reused in the
-  branch name and the worktree path so they stay in sync.
+Placeholders, replaced at runtime:
+
+- `SUFFIX` — a short kebab tag for the change (`fix-slack-retry`), reused in branch and path.
 - `TEMP-SUFFIX` — the temp branch name.
-- `CURRENT` — absolute path of the **root of the git worktree you started in** (the one being
-  merged into). This is NOT your cwd: cwd may be a subdirectory (e.g. a nested package). Resolve it
-  with `git -C "$PWD" rev-parse --show-toplevel` and use that, so the new worktree lands beside the
-  repo root rather than beside whatever subdir you happened to be in.
-- `CURRENT-BRANCH` — the branch checked out in `CURRENT`, i.e. the branch you're merging into.
-- `LOCATION-SUFFIX` — absolute path of the new worktree directory, a sibling of the `CURRENT` root.
-  Its basename matches the branch name `TEMP-SUFFIX` so the dir and branch stay in sync: i.e.
-  `CURRENT/../TEMP-SUFFIX` (e.g. `CURRENT/../temp-fix-slack-retry`), NOT `cwd/../…` and NOT a `wt-`
-  prefix.
+- `CURRENT` — absolute path of the **root of the worktree you started in**, the one being merged
+  into: `git -C "$PWD" rev-parse --show-toplevel`. Not your cwd, which may be a package dir.
+- `CURRENT-BRANCH` — the branch checked out in `CURRENT`.
+- `LOCATION-SUFFIX` — absolute path of the new worktree, a sibling of `CURRENT` whose basename is
+  the branch name: `CURRENT/../TEMP-SUFFIX` (e.g. `CURRENT/../temp-fix-slack-retry`).
 
-## Working-directory discipline (read first)
+**Entering with an existing worktree** (a `workflow` branch at phase 5, or a leftover): resolve
+the placeholders from `git -C CURRENT worktree list`, confirm the branch is ahead
+(`git -C CURRENT log --oneline CURRENT-BRANCH..TEMP-SUFFIX`), and start at step 3.
 
-The shell does NOT persist `cd` between commands. Every command must therefore name its
-directory explicitly with `git -C DIR …` or `make -C DIR …` (or an absolute path), never
-a bare `cd`. The rule of thumb:
+## Working-directory discipline
 
-- Steps 1, 2 (setup + dev + tests) run against `LOCATION-SUFFIX`.
-- Steps 3, 4 (merge + cleanup) run against `CURRENT`.
-- NEVER run `git worktree remove LOCATION-SUFFIX` while the shell's cwd is inside it.
+Name the directory on every command — `git -C DIR …`, `make -C DIR …`, absolute paths — never a
+bare `cd`. Steps 1–2 run against `LOCATION-SUFFIX`; steps 3–4 against `CURRENT`. Never run
+`git worktree remove LOCATION-SUFFIX` while the shell's cwd is inside it.
 
-## 0. Do a thorough survey and make a complete plan
+**Safety, binding throughout** — other worktrees and sessions may be live concurrently:
 
-Grill the human until the plan is completely concrete, scoped, actionable, and
-local-testable. Do NOT create the worktree until the plan is settled.
+- Never `git stash`, `git reset`, `git restore`, or `git checkout --` in `CURRENT` or the worktree
+  to "verify" something; investigate with `git show` / `git diff`.
+- Changes in `CURRENT` you didn't make: warn the human, don't touch them.
+- Stage by explicit path, never `git add -A` / `git add .`.
+- Pushing the branch or opening a PR needs its own explicit in-session approval; nothing else the
+  human approved implies it.
 
-REFUSE to start unless the planned change can be FULLY tested locally — with no
-local or remote dependency service (no DB, no broker, no external API, no running
-daemon). Pulling dep *packages* is fine; relying on a *service* is not. If the change
-can't be fully verified this way, stop and tell the human rather than spawning the
-worktree.
-
-Note: a target subproject's test suite must also run with NO copied config/secrets (see
-step 1). If its `make test` needs a `.env` or other secret to pass, the change is not
-fully local-testable here — stop and tell the human.
-
-## 1. Set up a worktree
+## 1. Set up the worktree
 
 ```sh
-git -C "$PWD" rev-parse --show-toplevel                       # resolve CURRENT (the worktree root, not cwd)
+git -C "$PWD" rev-parse --show-toplevel                       # CURRENT
 git -C CURRENT worktree list                                  # inspect existing worktrees first
 git -C CURRENT branch TEMP-SUFFIX                             # branch off the current HEAD
-git -C CURRENT worktree add LOCATION-SUFFIX TEMP-SUFFIX       # sibling of CURRENT, dir named TEMP-SUFFIX
+git -C CURRENT worktree add LOCATION-SUFFIX TEMP-SUFFIX       # sibling of CURRENT
 ```
 
-`SUFFIX` must be unique. If `git branch` or `worktree add` fails because the branch or
-path already exists, that's leftover debris from an aborted run — spot it in the
-`worktree list` output and either reuse it deliberately or remove it (see the cleanup
-block at the very end) before retrying. Do not work around it by force.
-
-Code deps will need to be installed again, from inside `LOCATION-SUFFIX` the normal way
-(`make -C LOCATION-SUFFIX deps`, etc.). This is a full, fresh install (pnpm install, and
-for some subprojects a uv venv or dict build) — expect it to be slow and use disk.
-
-DO NOT copy ANYTHING from `CURRENT` — including config files, secrets, `.env`,
-`node_modules`, build output, and EVERYTHING else.
+A branch or path that already exists is debris from an aborted run: reuse it deliberately or remove
+it (step 5), never force past it. Install deps fresh inside the worktree
+(`make -C LOCATION-SUFFIX deps` or the repo's equivalent; slow, uses disk). **Copy nothing from
+`CURRENT`** — no config, secrets, `.env`, `node_modules`, venvs, build output.
 
 ## 2. Develop in the worktree
 
-All work happens against `LOCATION-SUFFIX`.
+- Land the change under `LOCATION-SUFFIX`; self-review against the repo's rulebook.
+- The repo's check target green (`make -C LOCATION-SUFFIX check`, or its lint/test/typecheck
+  equivalents), and no `TODO:` left in any spec doc.
+- Commit on `TEMP-SUFFIX`: `git -C LOCATION-SUFFIX commit …`.
+- A session journal is written inside `LOCATION-SUFFIX` and committed on `TEMP-SUFFIX`; it rides
+  the branch back, and `CURRENT` stays clean for the ff-only merge.
 
-- Land the planned changes (use Edit/Write on files under `LOCATION-SUFFIX`).
-- Self-review and test. Run the project checks against the worktree:
-  `make -C LOCATION-SUFFIX lint`, `… test`, `… typecheck`.
-- Commit on `TEMP-SUFFIX`: `git -C LOCATION-SUFFIX commit …`. Stage by explicit
-  path — never `git add -A` or `git add .` (they sweep in untracked build output).
-- If the session keeps a journal, write it inside `LOCATION-SUFFIX` and commit it
-  on `TEMP-SUFFIX` with the code — it rides the branch back on merge, and `CURRENT`
-  stays clean for the ff-only merge in step 3.
+## 3. Review, then merge
 
-Safety — other worktrees and sessions may be live concurrently:
+Nothing merges unreviewed, and nothing merges with a must-fix finding.
 
-- Never `git stash`, `git reset`, or `git restore` in `CURRENT` or the worktree to
-  "verify" something — investigate with `git show`/`git diff` instead.
-- If you see changes in `CURRENT` you didn't make, warn the human; don't touch them.
-- Pushing the branch or opening a PR requires explicit in-session approval from the
-  human — never implied by anything else they approved.
+**Review.** Diff `git -C CURRENT diff CURRENT-BRANCH...TEMP-SUFFIX` and apply the `review` skill
+once over the whole branch: code and docs, the spec-first gate, the no-TODO gate, each dropped
+marker's section true of the code, the journal's acceptance checks. **If you wrote the code, the
+reviewer must not be you**: run it in a fresh context (Agent tool) and act on what it returns.
+Re-run the check target yourself, and a grep for `TODO:` over the spec docs
+(`git -C LOCATION-SUFFIX grep -n 'TODO:' -- <spec glob>`) must print nothing; a reported green is
+not evidence.
 
-## 3. Merge back
+**Verdict.** Must-fix findings, a red check, or a leftover TODO → don't merge; report and hand back
+(a fix round in the same worktree; `workflow` caps these at two, and a TODO that will not land this
+session is demoted to `BACKLOG:` with its design kept). The worktree stays. Clean, nits at most →
+continue.
 
-Ask the human for confirmation before merging. Do NOT merge until they approve.
+**Merge gate.** Ask the human before merging, unless they pre-authorized merges for this run
+(`workflow`'s up-front question). A passed review is never implicit approval.
 
-Preconditions, checked from `CURRENT`:
-
-```sh
-git -C CURRENT status --short      # CURRENT must be clean — abort the merge if it isn't
-git -C CURRENT rev-parse --abbrev-ref HEAD   # confirm you're merging into the intended branch
-```
-
-If `CURRENT` has uncommitted changes, stop and resolve them with the human first — an
-`--ff-only` merge updates the working tree and can be blocked by or entangle them.
-
-Once `CURRENT` is clean and confirmed, rebase the temp branch onto the target branch:
+**Preconditions**, from `CURRENT`:
 
 ```sh
-git -C LOCATION-SUFFIX rebase CURRENT-BRANCH   # CURRENT-BRANCH = the branch you're merging into
+git -C CURRENT status --short                # must be clean — a dirty CURRENT blocks the merge
+git -C CURRENT rev-parse --abbrev-ref HEAD   # confirm CURRENT-BRANCH
 ```
 
-The rebase is unconditional: a no-op that preserves the original SHAs when the base
-hasn't moved, and a replay when it has. **If it replayed commits** (i.e. `CURRENT-BRANCH`
-moved during dev), your step-2 green is now stale — the merged result was never tested.
-Re-run `make -C LOCATION-SUFFIX lint`, `… test`, `… typecheck` on the rebased tree and
-only continue once they pass.
-
-Then fast-forward. After the rebase this can never fail for a non-ff reason; if it does,
-something is wrong — STOP.
+**Rebase, retest, fast-forward:**
 
 ```sh
-git -C CURRENT merge --ff-only TEMP-SUFFIX     # guaranteed ff after the rebase
+git -C LOCATION-SUFFIX rebase CURRENT-BRANCH   # no-op if the base hasn't moved, a replay if it has
 ```
 
-Never fall back to a merge commit, `--no-ff`, or a squash. `-i` is unavailable here and
-is NOT needed — plain rebase replays the commits, and that's all this requires.
-
-### If the rebase reports conflicts
-
-Resolve in-session when the fix is mechanical:
+If it replayed commits, the step-2 green is stale: re-run the check target and continue only when
+it passes. Then:
 
 ```sh
-# edit the conflicted files (Edit tool), then:
-git -C LOCATION-SUFFIX add -A
-GIT_EDITOR=true git -C LOCATION-SUFFIX rebase --continue   # GIT_EDITOR=true skips the message editor
+git -C CURRENT merge --ff-only TEMP-SUFFIX     # guaranteed ff after the rebase; if it fails, STOP
 ```
 
-Escalate ONLY when a conflict needs domain judgment you can't make confidently. Then,
-rather than guessing, write a handoff doc and stop:
+Never a merge commit, `--no-ff`, or a squash; `-i` is unavailable and not needed.
 
-- Write `journals/YYYYMMDD-rebase-SUFFIX.md` containing: the `CURRENT` path, the
-  `LOCATION-SUFFIX` path, both branch names, the target `CURRENT-BRANCH`, a one-line summary
-  of the change, the literal `git -C LOCATION-SUFFIX status` output, and the exact
-  commands above to resume.
-- Tell the human to reconcile by hand in a terminal (plain rebase is enough — a fresh
-  *agent* session would hit the same `-i` block, so don't assume interactive rebase).
-- Do not abort the rebase or delete anything; leave it mid-rebase for the human.
+**Conflicts** during the rebase: resolve in-session when mechanical (`Edit`, then
+`git -C LOCATION-SUFFIX add -A` and `GIT_EDITOR=true git -C LOCATION-SUFFIX rebase --continue`).
+When a conflict needs domain judgment you can't make confidently, write a handoff
+`journals/YYYYMMDD-p{N}-rebase-SUFFIX.md` (`N` per the `journal` skill) — both paths, both branch
+names, a one-line summary, the literal `git -C LOCATION-SUFFIX status`, the commands to resume —
+tell the human to reconcile in a terminal (plain rebase suffices; a fresh agent session would hit
+the same `-i` block), and leave the rebase mid-way: abort nothing, delete nothing.
 
 ## 4. Remove the worktree
 
-After a successful merge (cwd must be outside `LOCATION-SUFFIX`):
+After a successful merge, cwd outside `LOCATION-SUFFIX`:
 
 ```sh
-git -C CURRENT worktree remove LOCATION-SUFFIX   # delete the worktree dir
-git -C CURRENT branch -d TEMP-SUFFIX             # delete the merged branch (-d refuses if unmerged)
-git -C CURRENT worktree prune                    # tidy any stale metadata
+git -C CURRENT worktree remove LOCATION-SUFFIX   # refuses on uncommitted changes — resolve, don't force
+git -C CURRENT branch -d TEMP-SUFFIX             # -d refuses if unmerged
+git -C CURRENT worktree prune
 ```
 
-`git worktree remove` refuses when the worktree has uncommitted changes — that's a
-safety check. Resolve or commit those changes rather than forcing the removal.
+Report: merged SHA(s), review findings including accepted nits, the spec sections that lost their
+marker, the journal entry that rode along.
 
-## When something fails or the human rejects the merge
+## 5. When the merge is rejected or something fails
 
-Do NOT silently abandon the worktree. Ask the human for the reason, then try again to
-accomplish the change (fix the code, re-test, re-request the merge). Only give up when
-the human EXPLICITLY says to stop.
-
-When they do say to stop, clean up the unmerged work. First copy any journal
-file(s) from the worktree back into `CURRENT`'s `journals/` — the journal must
-survive the branch. Then confirm the branch name with the human, since `-D`
-force-deletes commits that were never merged:
+Don't abandon the worktree silently. Ask the human for the reason and try again — fix, re-check,
+re-request. Give up only when the human explicitly says stop. Then copy any journal from the
+worktree into `CURRENT`'s `journals/`, confirm the branch name with the human (`-D` destroys
+unmerged commits), and:
 
 ```sh
-git -C CURRENT worktree remove --force LOCATION-SUFFIX   # discards uncommitted work in the worktree
-git -C CURRENT branch -D TEMP-SUFFIX                     # force-delete the unmerged branch
+git -C CURRENT worktree remove --force LOCATION-SUFFIX
+git -C CURRENT branch -D TEMP-SUFFIX
 git -C CURRENT worktree prune
 ```

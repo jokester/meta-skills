@@ -1,90 +1,86 @@
 ---
 name: code-impl
-description: "Use when implementing a task from a plan doc (docs/plan-*.md) — validates the plan against current code with fresh eyes, implements one task with tests in an isolated worktree, commits, and hands off to code-merge."
-allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, Agent, Skill]
+description: "The brief for one do-phase task: implement one `TODO:` section of a spec doc in the session's worktree — validate it against the code with fresh eyes, build it with tests, drop the marker, commit, report. Spawned by the workflow skill; never merges, never picks its own task."
+allowed-tools: [Read, Write, Edit, Glob, Grep, Bash, Skill]
 ---
 
-# code-impl — Implement One Plan Task
+# code-impl — Implement One Spec Task
 
-Pick up one task from a `docs/plan-{topic}.md`, implement it with tests in an
-isolated worktree, and commit. This skill does **not** merge — `code-merge` reviews
-and merges. It is designed to run in a fresh context (e.g. a subagent spawned by
-`code-manager`): assume nothing from prior sessions.
+Build exactly the `TODO:` section you were given, in the worktree you were given, with tests, and
+commit with the marker dropped. This skill runs in a fresh context spawned by `workflow` phase 4:
+assume nothing from prior sessions, and read what follows in order.
 
-## Steps
+## 1. Load the task and the rules
 
-### 1. Load the plan and conventions
+- **The task**: the spec path, the heading verbatim, the worktree path `LOCATION-SUFFIX`, and the
+  journal's task line (files, acceptance check, interface line) — all handed to you. Missing, or a
+  `BACKLOG:` section named? Stop and ask. Never choose a task yourself.
+- **The spec**, whole, and the repo's shared glossary for its words, if it keeps one.
+- **The rules**: the repo's rulebook (via CLAUDE.md's pointer — the name varies per repo), then
+  from its index the topic rules the task touches (language and testing rules, package or layer
+  rules, config, deps). No rulebook? Stop and ask rather than implementing against guessed
+  conventions.
+- Read the target subproject's `Makefile` (check, test, deps, format targets).
+- Confirm with `git -C LOCATION-SUFFIX worktree list` that the worktree is not the main checkout.
+  Every command names it: `git -C`, `make -C`, absolute paths.
 
-- Read the plan doc (user- or manager-specified; otherwise the most recently
-  modified `docs/plan-*.md`).
-- Read the repo's rulebook (via CLAUDE.md's pointer — the name varies per repo)
-  and, from its index, the topic docs the task touches (typically the language
-  rules, which include the testing rules). If the repo has no rulebook, stop and
-  ask rather than implementing against guessed conventions. Then the plan's
-  "Conventions & constraints" section.
-- Read the target subproject's `Makefile` (tests, deps, format targets).
+## 2. Validate with fresh eyes
 
-### 2. Validate the plan with fresh eyes
+The TODO was written before the code was read this closely. Verify its assumptions against the code
+**as it exists now**: the modules, exports and behaviors it names or implies. Read every file the
+task will touch or depend on.
 
-Plans rot between planning and implementation. Before writing anything, verify the
-task's assumptions against the code **as it exists now**: the files, APIs, and
-behaviors the task names. Read all existing code the task will touch or depend on.
+If the task is invalidated (target moved, approach obsoleted, acceptance impossible) or its behavior
+is not fully decided: **stop**. Report what diverged and propose the wording — do not build a stale
+task, and do not silently reinterpret it.
 
-If the task is invalidated (target moved, approach obsoleted, acceptance check
-impossible): **stop**. Report what diverged and propose a plan amendment (Decision
-log entry) — do not implement a stale task, and do not silently reinterpret it.
+**Read your position.** A neighbouring `BACKLOG:` section that this change makes nearly free, or
+that touches the same files, earns a one-line suggestion with evidence in your report. Suggest
+only; the task stays exactly the named section.
 
-### 3. Pick the task
+## 3. Design before code
 
-The specified task, or the first unchecked `- [ ]` in the plan. One task per
-invocation.
+Interface first: for a new file or anything crossing two packages or modules, hold to the journal's
+interface line — module, exports, imports — or report why it cannot hold. Stay within the repo's
+layering and each package's stated purpose.
 
-### 4. Isolate in a worktree
+## 4. Implement
 
-Follow `spawn-worktree` steps 1–2 (setup + develop) — it is the mechanism, this
-skill is the policy. Skip creation only when this session was already placed in a
-dedicated worktree (e.g. by code-manager); then just verify with
-`git worktree list` that you're not on the main checkout.
-
-### 5. Implement
-
-- **Readable, testable, minimal.** Only what the task asks for. No drive-by
-  refactors, speculative features, or over-abstraction.
+- **Readable, testable, minimal.** Only what the section asks for. No drive-by refactors,
+  speculative features, or over-abstraction.
 - **Match existing patterns.** New code should look like the neighboring code.
-- **Stable APIs.** Exported functions get a short docstring and stable signature.
-- **Comments are for "why".** Code carries "what" and "how".
+- **Exports are stable**, each with a short doc comment; comments carry only the *why*.
+- **Instrument as you go**, to the repo's observability standard (its rules doc or skill, if it
+  has one): each transition, refusal and failure the task adds is visible the way its neighbours'
+  are.
+- Dependencies change only through `code-deps`.
 
-### 6. Write tests
+## 5. Write tests
 
-Every behavior change ships with tests, following the repo's language rules for
-test naming and placement; test behavior, not implementation. The task's
-**acceptance check** from the plan must be among them.
+Every behavior change ships with tests, following the repo's language rules for test naming and
+placement; test behavior, not implementation. The task's acceptance check is among them, and a spec
+claim a test can pin gets pinned.
 
-### 7. Verify in the worktree
+## 6. Drop the marker, then check
 
-`make -C LOCATION-SUFFIX test` (and lint/typecheck/format targets where present).
-All green before the task counts. Fix code or tests — never skip or delete a
-failing test.
+In the spec, in the worktree, remove `TODO: ` from the section heading and make its body true of the
+code as built — still within budget, still user-facing (`spec-writing`). Touch no other section.
+Then the repo's check target (`make -C LOCATION-SUFFIX check`, or its lint/test/typecheck
+equivalents) green before the task counts: fix code or tests — never skip, delete, or annotate a
+failing check away.
 
-### 8. Flip the checkbox — inside the worktree
+## 7. Commit and report
 
-Change the task's `- [ ]` to `- [x]` in the plan doc **in the worktree** and include
-it in the commit. The checkbox then lands on the main branch atomically with the
-code when code-merge fast-forwards — a rejected merge leaves the plan on main
-untouched. Do not modify other tasks.
+Commit on the branch (`git -C LOCATION-SUFFIX commit`, staging by explicit path). Then report:
 
-### 9. Commit and report
-
-Commit on the temp branch (`git -C LOCATION-SUFFIX commit`). Then report:
-
-- Which task was completed, and the worktree/branch paths for code-merge
-- Files created/changed
-- Design decisions made (and why)
-- Anything noticed that affects upcoming tasks or the plan
+- The section completed and the commit SHA
+- Files created/changed; design decisions made, and why
+- Anything that affects the remaining tasks, the spec, or the rules — an open question for a
+  package, a promotion suggestion, an interface line that had to change
 
 ## Rules
 
-- Never merge back — that is code-merge's job, with its own fresh-eyes review.
-- Do not change code outside the current task's scope.
-- If a task is ambiguous or blocked on an Open question in the plan, stop and ask
-  rather than guessing.
+- Never merge, never touch `CURRENT`, never edit another spec section or the journal — `workflow`
+  owns those.
+- Do not change code outside the task's scope.
+- Ambiguous, or blocked on an open question? Stop and ask rather than guessing.
