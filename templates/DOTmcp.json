@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "penpot": {
+      "type": "http",
+      "url": "http://100.123.167.9:4600/mcp"
+    }
+  }
+}
