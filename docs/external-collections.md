@@ -153,6 +153,65 @@ Current result: **191 extracted + 1 generated, 86 dropped, ~26 MB**. See
 `docs/extracts/nexu-io-open-design.md`, which the extractor rewrites on
 every run.
 
+### `cathrynlavery/diagram-design` — shape B, normal install
+
+Pinned rev `f4547ee`. One skill: `skills/diagram-design/` — a 30 KB
+`SKILL.md` plus a self-contained `references/` (one file per diagram type
+and per cross-cutting concern: style guide, onboarding, export, imports)
+and `assets/` (HTML/SVG examples for all 44 diagram types, ~5 MB). No path
+escapes — everything the skill needs lives under its own dir. → normal
+install: SYMLINK for HOME/DIR dests, COPY for REPO.
+
+What the native plugin route (`.claude-plugin/`, `.codex-plugin/`,
+`.factory-plugin/`) adds and we don't get: slash commands (`/doctor`,
+`/export-diagram`, `/import-drawio`, `/import-excalidraw`,
+`/import-mermaid`, `/profile`) that are thin wrappers over the same
+`references/*.md` the skill already reads — convenience entry points, not
+new capability. `scripts/` (repo-local build/lint/verify tooling, vendored
+icon sets) and `docs/`/`.github/` are maintainer-side, not needed at
+install time. No rewiring registered.
+
+### `cursor/plugins` — monorepo, vendored whole; `pstack` is shape B
+
+Pinned rev `ccb5507`. This is Cursor's official plugins monorepo: 18
+independent top-level plugin dirs (`pstack`, `cursor-team-kit`,
+`ralph-loop`, `thermos`, `dyl-stack`, …), ~10 MB total. Vendored as one
+submodule at `cursor/plugins` per the normal `<gh-username>/<repo>`
+convention rather than a REMOTE recipe — small enough, and each top-level
+dir is a self-contained product rather than catalogue stubs/duplicates, so
+the shape-E problems (orphan entries, cross-file relative paths needing
+extraction) don't apply here. Only `pstack/` is categorized; the other 17
+are uninitialized in practice (nobody's read their shape yet).
+
+`pstack/skills/` has 51 `SKILL.md` dirs, self-contained (sidecar
+`references/`, `playbooks/`, `scripts/` all live under their own skill
+dir, no `../` escapes). → normal install for those.
+
+What's lost by vendoring only `pstack/` skills: a few SKILL.md bodies
+(`poteto-mode`, notably) reference sibling plugins by name in prose —
+e.g. "the `deslop` skill from the `cursor-team-kit` plugin" — those are
+soft documentation pointers, not resolvable paths, and the referenced
+plugin isn't installed unless `cursor-team-kit` is categorized too.
+`pstack/automations/benny/skills/*` (3 more SKILL.md, issue-triage
+automation) and `pstack/agents/`, `pstack/docs/` are outside `pstack/skills/`
+and not categorized. `.cursor-plugin/plugin.json` wires pstack's skills
+together as a Cursor plugin; no hooks beyond the skills themselves.
+
+### `antfu/skills-pack` — not vendored, no content
+
+Looked at but deliberately **not** added as a submodule: `skills/` in this
+repo is an empty placeholder (`.gitkeep` only). It's a curation manifest
+for Anthony Fu's own `skills-npm` tool (`meta.ts` lists sources), which
+fetches the real skill files from upstream repos at install time —
+`mattpocock/skills` (already vendored here), `ayghri/i-have-adhd` (already
+vendored here), `cursor/plugins/pstack/skills/unslop` (now vendored via
+the `cursor/plugins` submodule above), plus `antfu/skills`, `shadcn/improve`,
+`vuejs-ai/skills`, `onmax/nuxt-skills`, `anthropics/skills`,
+`vercel-labs/agent-browser`, `AminBlg/SimpleEnglish`, and
+`kucherenko/jscpd` (not vendored). Worth reading for curation taste, not
+installable as-is. Revisit if any of its unvendored upstreams are wanted
+individually.
+
 ### others
 
 Not yet categorized beyond the shape guesses above — those submodules are

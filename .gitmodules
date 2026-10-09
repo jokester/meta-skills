@@ -28,3 +28,9 @@
 [submodule "ayghri/i-have-adhd"]
 	path = ayghri/i-have-adhd
 	url = https://github.com/ayghri/i-have-adhd
+[submodule "cathrynlavery/diagram-design"]
+	path = cathrynlavery/diagram-design
+	url = https://github.com/cathrynlavery/diagram-design
+[submodule "cursor/plugins"]
+	path = cursor/plugins
+	url = https://github.com/cursor/plugins
